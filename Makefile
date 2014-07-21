@@ -15,7 +15,7 @@ PG_CPPFLAGS := $(ZMQ_CFLAGS) $(PROTOBUF_CFLAGS)
 PG_LIBS := -lstdc++ $(ZMQ_LDFLAGS) $(PROTOBUF_LDFLAGS)
 
 # FIXME on Windows
-FIX_CXX_11_BUG := ""
+FIX_CXX_11_BUG = 
 ifeq ($(shell uname), 'Linux')
 FIX_CXX_11_BUG =  -Wl,--no-as-needed
 endif
