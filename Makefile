@@ -2,10 +2,14 @@ MODULE_big = virtdb_fdw
 OBJS = virtdb_fdw_main.o virtdb_fdw.o protobuf/data.pb.o
 EXTENSION = virtdb_fdw
 EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
-SHLIB_LINK = -lstdc++ 
+SHLIB_LINK = -lstdc++
 DATA = $(EXTENSION)--$(EXTVERSION).sql
 EXTRA_CLEAN = $(EXTENSION)--$(EXTVERSION).sql
 PG_CONFIG ?= $(shell which pg_config)
+ifeq ($(PG_CONFIG), )
+$(info $$PG_CONFIG is [${PG_CONFIG}])
+PG_CONFIG = $(shell which /usr/local/pgsql/bin/pg_config)
+endif
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 ZMQ_LDFLAGS := $(shell pkg-config --libs libzmq)
 ZMQ_CFLAGS := $(shell pkg-config --cflags libzmq)
@@ -15,7 +19,7 @@ PG_CPPFLAGS := $(ZMQ_CFLAGS) $(PROTOBUF_CFLAGS)
 PG_LIBS := -lstdc++ $(ZMQ_LDFLAGS) $(PROTOBUF_LDFLAGS)
 
 # FIXME on Windows
-FIX_CXX_11_BUG = 
+FIX_CXX_11_BUG =
 ifeq ($(shell uname), 'Linux')
 FIX_CXX_11_BUG =  -Wl,--no-as-needed
 endif
@@ -34,5 +38,4 @@ protobuf/data.pb.h protobuf/data.pb.cc: protobuf/data.proto
 	make -C protobuf all
 
 $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
-	cp $< $@ 
-
+	cp $< $@
