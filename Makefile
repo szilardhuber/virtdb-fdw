@@ -28,9 +28,9 @@ LDFLAGS += -lstdc++ $(FIX_CXX_11_BUG)
 
 all: $(EXTENSION)--$(EXTVERSION).sql
 
-protobuf/data.pb.o: protobuf/data.pb.cc
+protobuf/data.pb.o virtdb_fdw.o: protobuf/data.pb.cc
 
-protobuf/data.pb.cc: protobuf/data.proto
+protobuf/data.pb.h protobuf/data.pb.cc: protobuf/data.proto
 	make -C protobuf all
 
 $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
