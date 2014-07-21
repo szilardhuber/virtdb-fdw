@@ -31,6 +31,9 @@ extern "C" {
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <memory>
+// protocol buffer
+#include "protobuf/data.pb.h"
 
 namespace { namespace virtdb_fdw_priv {
 
@@ -104,6 +107,8 @@ extern "C" {
 
 void PG_init_virtdb_fdw_cpp(void)
 {
+  using virtdb::interface::pb::Data;
+  std::shared_ptr<Data> data_ptr(new Data);
 }
 
 void PG_fini_virtdb_fdw_cpp(void)

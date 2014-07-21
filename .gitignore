@@ -23,3 +23,6 @@
 # generated
 virtdb_fdw--[0-9].[0-9].[0-9].sql
 
+# protocol buffer generated
+*.pb.cc
+*.pb.h

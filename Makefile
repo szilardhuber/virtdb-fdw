@@ -1,5 +1,5 @@
 MODULE_big = virtdb_fdw
-OBJS = virtdb_fdw_main.o virtdb_fdw.o
+OBJS = virtdb_fdw_main.o virtdb_fdw.o protobuf/data.pb.o
 EXTENSION = virtdb_fdw
 EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 SHLIB_LINK = -lstdc++ 
@@ -27,6 +27,11 @@ include $(PGXS)
 LDFLAGS += -lstdc++ $(FIX_CXX_11_BUG)
 
 all: $(EXTENSION)--$(EXTVERSION).sql
+
+protobuf/data.pb.o: protobuf/data.pb.cc
+
+protobuf/data.pb.cc: protobuf/data.proto
+	make -C protobuf all
 
 $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 	cp $< $@ 
