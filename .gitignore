@@ -19,3 +19,7 @@
 *.exe
 *.out
 *.app
+
+# generated
+virtdb_fdw--[0-9].[0-9].[0-9].sql
+
