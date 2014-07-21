@@ -1,6 +1,10 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 
+
+// protocol buffer
+#include "protobuf/data.pb.h"
+
 #include "virtdb_fdw.h" // pulls in some postgres headers
 // more postgres headers
 extern "C" {
@@ -32,8 +36,6 @@ extern "C" {
 #include <ctype.h>
 #include <stdlib.h>
 #include <memory>
-// protocol buffer
-#include "protobuf/data.pb.h"
 
 namespace { namespace virtdb_fdw_priv {
 

@@ -24,7 +24,7 @@ CXXFLAGS += -std=c++11 -fPIC -pthread $(FIX_CXX_11_BUG)
 
 include $(PGXS)
 
-LDFLAGS += -lstdc++ $(FIX_CXX_11_BUG)
+LDFLAGS += $(FIX_CXX_11_BUG) $(PG_LIBS)
 
 all: $(EXTENSION)--$(EXTVERSION).sql
 
