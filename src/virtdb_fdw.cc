@@ -41,7 +41,6 @@ extern "C" {
 #include <memory>
 
 zmq::context_t* zmq_context = NULL;
-
 namespace { namespace virtdb_fdw_priv {
 
 // We dont't do anything here right now, it is intended only for optimizations.
@@ -121,7 +120,7 @@ static ForeignScan
 static void
 sendMessage(std::shared_ptr<::google::protobuf::Message> message)
 {
-    zmq::socket_t socket (*zmq_context, ZMQ_REQ);
+    zmq::socket_t socket (zmq_context, ZMQ_REQ);
     socket.connect ("tcp://localhost:55555");
     std::string str;
     message->SerializeToString(&str);
