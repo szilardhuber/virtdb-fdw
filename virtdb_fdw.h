@@ -15,9 +15,10 @@ Datum virtdb_fdw_status_cpp(PG_FUNCTION_ARGS);
 Datum virtdb_fdw_handler_cpp(PG_FUNCTION_ARGS);
 Datum virtdb_fdw_validator_cpp(PG_FUNCTION_ARGS);
 
+extern zmq::context_t zmq_context;
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif /*_VIRTDB_FDW_H_INCLUDED_*/
-
