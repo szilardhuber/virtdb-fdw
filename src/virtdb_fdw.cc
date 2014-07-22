@@ -120,7 +120,7 @@ static ForeignScan
 static void
 sendMessage(std::shared_ptr<::google::protobuf::Message> message)
 {
-    zmq::socket_t socket (*zmq_context, ZMQ_REQ);
+    zmq::socket_t socket (zmq_context, ZMQ_REQ);
     socket.connect ("tcp://localhost:55555");
     std::string str;
     message->SerializeToString(&str);
@@ -138,11 +138,11 @@ interpretExpression( Expr* clause )
     static int level = 0;
     using virtdb::interface::pb::Expression;
     std::shared_ptr<Expression> expression(new Expression);
-    expression->mutable_simple()->set_variable("Expr->type");
+    expression->set_variable("Expr->type");
     expression->set_operand("=");
     std::ostringstream s;
     s << clause->type;
-    expression->mutable_simple()->set_value(s.str().c_str());
+    expression->set_value(s.str().c_str());
     sendMessage(expression);
     elog(LOG, "[%s] - On level: %d", __func__, level);
     elog(LOG, "[%s] - Filter expression type: %d", __func__, clause->type);
