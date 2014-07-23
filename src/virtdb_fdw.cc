@@ -3,7 +3,7 @@
 
 
 // protocol buffer
-#include "protobuf/data.pb.h"
+#include "proto/data.pb.h"
 
 // ZeroMQ
 #include <zmq.hpp>
@@ -40,7 +40,7 @@ extern "C" {
 #include <stdlib.h>
 #include <memory>
 
-zmq::context_t zmq_context (1);
+zmq::context_t* zmq_context = NULL;
 
 namespace { namespace virtdb_fdw_priv {
 
@@ -121,7 +121,7 @@ static ForeignScan
 static void
 sendMessage(std::shared_ptr<::google::protobuf::Message> message)
 {
-    zmq::socket_t socket (zmq_context, ZMQ_REQ);
+    zmq::socket_t socket (*zmq_context, ZMQ_REQ);
     socket.connect ("tcp://localhost:55555");
     std::string str;
     message->SerializeToString(&str);
@@ -139,11 +139,11 @@ interpretExpression( Expr* clause )
     static int level = 0;
     using virtdb::interface::pb::Expression;
     std::shared_ptr<Expression> expression(new Expression);
-    expression->set_variable("Expr->type");
+    expression->mutable_simple()->set_variable("Expr->type");
     expression->set_operand("=");
     std::ostringstream s;
     s << clause->type;
-    expression->set_value(s.str().c_str());
+    expression->mutable_simple()->set_value(s.str().c_str());
     sendMessage(expression);
     elog(LOG, "[%s] - On level: %d", __func__, level);
     elog(LOG, "[%s] - Filter expression type: %d", __func__, clause->type);
@@ -297,6 +297,7 @@ void PG_init_virtdb_fdw_cpp(void)
 {
     using virtdb::interface::pb::Data;
     std::shared_ptr<Data> data_ptr(new Data);
+    zmq_context = new zmq::context_t (1);
 }
 
 void PG_fini_virtdb_fdw_cpp(void)
