@@ -1,7 +1,0 @@
-
-package virtdb.interface.pb;
-
-message Data {
-  required int32 Dummy = 1;
-}
-

@@ -3,7 +3,10 @@
 
 
 // protocol buffer
-#include "protobuf/data.pb.h"
+#include "proto/data.pb.h"
+
+// ZeroMQ
+#include <zmq.hpp>
 
 #include "virtdb_fdw.h" // pulls in some postgres headers
 // more postgres headers
@@ -37,6 +40,7 @@ extern "C" {
 #include <stdlib.h>
 #include <memory>
 
+zmq::context_t* zmq_context = NULL;
 namespace { namespace virtdb_fdw_priv {
 
 // We dont't do anything here right now, it is intended only for optimizations.
@@ -111,12 +115,35 @@ static ForeignScan
     return ret;
 }
 
+// Serializes a Protobuf message to ZMQ via REQ-REP method.
+// will be consolidated but this is also for rapid development.
+static void
+sendMessage(std::shared_ptr<::google::protobuf::Message> message)
+{
+    zmq::socket_t socket (*zmq_context, ZMQ_REQ);
+    socket.connect ("tcp://localhost:55555");
+    std::string str;
+    message->SerializeToString(&str);
+    int sz = str.length();
+    zmq::message_t query(sz);
+    memcpy(query.data (), str.c_str(), sz);
+    socket.send (query);
+}
+
 // Here we will convert the expressions to a serializable format and pass them
 // over the API but for now it only displays debug log.
 static void
 interpretExpression( Expr* clause )
 {
     static int level = 0;
+    using virtdb::interface::pb::Expression;
+    std::shared_ptr<Expression> expression(new Expression);
+    expression->mutable_simple()->set_variable("Expr->type");
+    expression->set_operand("=");
+    std::ostringstream s;
+    s << clause->type;
+    expression->mutable_simple()->set_value(s.str().c_str());
+    sendMessage(expression);
     elog(LOG, "[%s] - On level: %d", __func__, level);
     elog(LOG, "[%s] - Filter expression type: %d", __func__, clause->type);
     if (IsA(clause, BoolExpr))
@@ -269,6 +296,7 @@ void PG_init_virtdb_fdw_cpp(void)
 {
     using virtdb::interface::pb::Data;
     std::shared_ptr<Data> data_ptr(new Data);
+    zmq_context = new zmq::context_t (1);
 }
 
 void PG_fini_virtdb_fdw_cpp(void)

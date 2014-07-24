@@ -20,4 +20,3 @@ Datum virtdb_fdw_validator_cpp(PG_FUNCTION_ARGS);
 #endif /* __cplusplus */
 
 #endif /*_VIRTDB_FDW_H_INCLUDED_*/
-
