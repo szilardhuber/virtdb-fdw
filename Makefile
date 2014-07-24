@@ -1,11 +1,11 @@
 MODULE_big = virtdb_fdw
-PROTO_OBJECTS = src/proto/common.pb.o src/proto/data.pb.o 
+PROTO_OBJECTS = src/proto/common.pb.o src/proto/data.pb.o
 OBJS = src/virtdb_fdw_main.o src/virtdb_fdw.o $(PROTO_OBJECTS)
-EXTENSION = virtdb_fdw
-EXTVERSION = $(shell grep default_version src/$(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
+EXTENSION = src/virtdb_fdw
+EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 SHLIB_LINK = -lstdc++
-DATA = src/$(EXTENSION)--$(EXTVERSION).sql
-EXTRA_CLEAN = src/$(EXTENSION)--$(EXTVERSION).sql
+DATA = $(EXTENSION)--$(EXTVERSION).sql
+EXTRA_CLEAN = $(EXTENSION)--$(EXTVERSION).sql
 PG_CONFIG ?= $(shell which pg_config)
 ifeq ($(PG_CONFIG), )
 $(info $$PG_CONFIG is [${PG_CONFIG}])
@@ -31,7 +31,7 @@ include $(PGXS)
 
 LDFLAGS += $(FIX_CXX_11_BUG) $(PG_LIBS)
 
-all: src/$(EXTENSION)--$(EXTVERSION).sql
+all: $(EXTENSION)--$(EXTVERSION).sql
 
 src/virtdb_fdw.o: $(PROTO_OBJECTS)
 
@@ -40,6 +40,6 @@ src/virtdb_fdw.o: $(PROTO_OBJECTS)
 %.pb.cc: %.proto
 	protoc -I src/proto --cpp_out=src/proto/ $<
 
-src/$(EXTENSION)--$(EXTVERSION).sql: src/$(EXTENSION).sql
+$(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 	echo $< $@
 	cp $< $@
