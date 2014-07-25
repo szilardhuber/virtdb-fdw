@@ -6,7 +6,7 @@
 #include "virtdb_fdw.h" // pulls in some postgres headers
 
 // ZeroMQ
-#include <zmq.hpp>
+#include "cppzmq/zmq.hpp"
 
 // more postgres headers
 extern "C" {
