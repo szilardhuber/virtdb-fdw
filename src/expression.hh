@@ -9,22 +9,22 @@
 namespace { namespace virtdb_fdw_priv {
     class Expression {
         private:
-            virtdb::interface::pb::Expression expr;
+            std::shared_ptr<virtdb::interface::pb::Expression> expr;
 
         public:
+            Expression() : expr(new virtdb::interface::pb::Expression) {}
             void set_variable(std::string value) {
-                expr.mutable_simple()->set_variable(value);
+                expr->mutable_simple()->set_variable(value);
             }
             void set_operand(std::string value) {
-                expr.set_operand(value);
+                expr->set_operand(value);
             }
             void set_value(std::string value) {
-                expr.mutable_simple()->set_value(value);
+                expr->mutable_simple()->set_value(value);
             }
             std::shared_ptr<virtdb::interface::pb::Expression> get_message()
             {
-                std::shared_ptr<virtdb::interface::pb::Expression> ret (&expr);
-                return ret;
+                return expr;
             }
     };
 }}
