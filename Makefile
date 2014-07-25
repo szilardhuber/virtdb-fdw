@@ -19,7 +19,7 @@ PROTOBUF_LDFLAGS := $(shell pkg-config --libs protobuf)
 PROTOBUF_CFLAGS := $(shell pkg-config --cflags protobuf)
 PG_CPPFLAGS := $(ZMQ_CFLAGS) $(PROTOBUF_CFLAGS)
 PG_LIBS := -lstdc++ $(ZMQ_LDFLAGS) $(PROTOBUF_LDFLAGS)
-# 
+#
 GTEST_PATH := $(BUILD_ROOT)/src/gtest-1.7.0
 GTEST_CONFIG_STATUS := $(GTEST_PATH)/config.status
 # FIXME integrate libtool better ...
@@ -27,7 +27,7 @@ GTEST_LIBDIR := $(GTEST_PATH)/lib/.libs/
 
 # FIXME on Windows
 FIX_CXX_11_BUG =
-ifeq ($(shell uname), 'Linux')
+ifeq ($(shell uname), Linux)
 FIX_CXX_11_BUG =  -Wl,--no-as-needed
 endif
 

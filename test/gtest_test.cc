@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include <vector>
 
+#include "expression_test.hh"
+
 // the purpose of these tests is to make sure
 // gtest includes and libs are properly integrated
 
@@ -30,4 +32,3 @@ int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

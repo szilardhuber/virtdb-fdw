@@ -6,7 +6,7 @@
 // standard headers
 #include <memory>
 
-namespace { namespace virtdb_fdw_priv {
+namespace virtdb {
     class Expression {
         private:
             std::shared_ptr<virtdb::interface::pb::Expression> expr;
@@ -27,4 +27,4 @@ namespace { namespace virtdb_fdw_priv {
                 return expr;
             }
     };
-}}
+}
