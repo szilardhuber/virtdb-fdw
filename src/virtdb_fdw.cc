@@ -292,8 +292,8 @@ extern "C" {
 
 void PG_init_virtdb_fdw_cpp(void)
 {
-    using virtdb::interface::pb::Data;
-    std::shared_ptr<Data> data_ptr(new Data);
+    using virtdb::interface::pb::Column;
+    std::shared_ptr<Column> data_ptr(new Column);
     zmq_context = new zmq::context_t (1);
 }
 
