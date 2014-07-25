@@ -31,7 +31,10 @@ include $(PGXS)
 
 LDFLAGS += $(FIX_CXX_11_BUG) $(PG_LIBS)
 
-all: $(EXTENSION)--$(EXTVERSION).sql
+all: $(EXTENSION)--$(EXTVERSION).sql gtest-build
+
+gtest-build:
+	echo "doing gtest build"
 
 src/virtdb_fdw.o: $(PROTO_OBJECTS)
 
