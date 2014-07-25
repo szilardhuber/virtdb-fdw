@@ -2,13 +2,12 @@
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 
 
-// protocol buffer
-#include "proto/data.pb.h"
+#include "expression.hh"
+#include "virtdb_fdw.h" // pulls in some postgres headers
 
 // ZeroMQ
 #include <zmq.hpp>
 
-#include "virtdb_fdw.h" // pulls in some postgres headers
 // more postgres headers
 extern "C" {
     #include <utils/memutils.h>
@@ -136,14 +135,13 @@ static void
 interpretExpression( Expr* clause )
 {
     static int level = 0;
-    using virtdb::interface::pb::Expression;
     std::shared_ptr<Expression> expression(new Expression);
-    expression->mutable_simple()->set_variable("Expr->type");
+    expression->set_variable("Expr->type");
     expression->set_operand("=");
     std::ostringstream s;
     s << clause->type;
-    expression->mutable_simple()->set_value(s.str().c_str());
-    sendMessage(expression);
+    expression->set_value(s.str().c_str());
+    sendMessage(expression->get_message());
     elog(LOG, "[%s] - On level: %d", __func__, level);
     elog(LOG, "[%s] - Filter expression type: %d", __func__, clause->type);
     if (IsA(clause, BoolExpr))
