@@ -37,3 +37,4 @@ libtool
 .dirstamp
 gtest-config
 src/gtest-1.7.0/Makefile
+test/*_test

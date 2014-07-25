@@ -134,6 +134,7 @@ sendMessage(std::shared_ptr<::google::protobuf::Message> message)
 static void
 interpretExpression( Expr* clause )
 {
+    using virtdb::Expression;
     static int level = 0;
     std::shared_ptr<Expression> expression(new Expression);
     expression->set_variable("Expr->type");
