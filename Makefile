@@ -13,11 +13,12 @@ PG_CONFIG = $(shell which /usr/local/pgsql/bin/pg_config)
 endif
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 ZMQ_LDFLAGS := $(shell pkg-config --libs libzmq)
-ZMQ_CFLAGS := $(shell pkg-config --cflags libzmq)
+ZMQ_CFLAGS := $(shell pkg-config --cflags libzmq) -I./src/cppzmq
 PROTOBUF_LDFLAGS := $(shell pkg-config --libs protobuf)
 PROTOBUF_CFLAGS := $(shell pkg-config --cflags protobuf)
 PG_CPPFLAGS := $(ZMQ_CFLAGS) $(PROTOBUF_CFLAGS)
 PG_LIBS := -lstdc++ $(ZMQ_LDFLAGS) $(PROTOBUF_LDFLAGS)
+BUILD_ROOT := $(shell pwd)
 
 # FIXME on Windows
 FIX_CXX_11_BUG =
@@ -31,10 +32,13 @@ include $(PGXS)
 
 LDFLAGS += $(FIX_CXX_11_BUG) $(PG_LIBS)
 
-all: $(EXTENSION)--$(EXTVERSION).sql gtest-build
+all: $(EXTENSION)--$(EXTVERSION).sql gtest-pkg-build test-build
 
-gtest-build:
-	echo "doing gtest build"
+gtest-pkg-build:
+	echo "building the gtest package"
+
+test-build:
+	echo "doing test build"
 
 src/virtdb_fdw.o: $(PROTO_OBJECTS)
 
