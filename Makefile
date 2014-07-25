@@ -29,11 +29,9 @@ gtest-pkg-build-all: gtest-pkg-configure gtest-pkg-lib
 gtest-pkg-configure: $(GTEST_CONFIG_STATUS)
 
 $(GTEST_CONFIG_STATUS):
-	@echo "doing configure in gtest"
-	@cd $(GTEST_PATH)
-	./configure
+	@echo "doing configure in gtest in " $(GTEST_PATH) 
+	cd $(GTEST_PATH) ; ./configure
 	@echo "configure done in gtest"
-	@cd $(BUILD_ROOT)
 
 # NOTE: assumption: the libdir will be created during build
 gtest-pkg-lib: $(GTEST_LIBDIR)
@@ -62,5 +60,5 @@ $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 	echo $< $@
 	cp $< $@
 
-virtdb-clean: test-build-clean gtest-pkg-clean
+virtdb-clean: test-build-clean gtest-pkg-clean clean
 	rm -f $(PROTO_OBJECTS) $(OBJS) $(shell find ./ -name "*.pb.*") $(EXTENSION)--$(EXTVERSION).sql

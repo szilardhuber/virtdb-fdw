@@ -1,6 +1,7 @@
 # BUILD_ROOT is required
 # XXX EXTRA_CLEAN = $(EXTENSION)--$(EXTVERSION).sql
-PROTO_FILES = $(wildcard $(BUILD_ROOT)/src/proto/*.proto) 
+PROTO_FILE_NAMES = common.proto meta_data.proto db_config.proto data.proto
+PROTO_FILES = $(patsubst %.proto,$(BUILD_ROOT)/src/proto/%.proto,$(PROTO_FILE_NAMES)) 
 PROTO_SOURCES = $(patsubst %.proto,%.pb.cc,$(PROTO_FILES))
 PROTO_OBJECTS = $(patsubst %.pb.cc,%.pb.o,$(PROTO_SOURCES))
 ZMQ_LDFLAGS := $(shell pkg-config --libs libzmq)
