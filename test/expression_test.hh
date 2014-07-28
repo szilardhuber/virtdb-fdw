@@ -18,7 +18,7 @@ namespace virtdb
         {
             int a = 0;
             std::shared_ptr<Expression> expression(new Expression);
-            //EXPECT_NE(expression.get(), nullptr);
+            EXPECT_NE(expression.get(), nullptr);
         });
     }
 }
