@@ -74,9 +74,9 @@ namespace virtdb
             EXPECT_EQ(left_operand, composite_expression->left()->operand());
             EXPECT_EQ(left_value, composite_expression->left()->value());
 
-            // EXPECT_EQ(composite_expression->right()->variable(), right_name);
-            // EXPECT_EQ(composite_expression->right()->operand(), right_operand);
-            // EXPECT_EQ(composite_expression->right()->value(), right_value);
+            EXPECT_EQ(composite_expression->right()->variable(), right_name);
+            EXPECT_EQ(composite_expression->right()->operand(), right_operand);
+            EXPECT_EQ(composite_expression->right()->value(), right_value);
 
         });
     }
