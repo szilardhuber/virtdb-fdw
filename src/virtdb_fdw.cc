@@ -126,12 +126,12 @@ static ForeignScan
 // Serializes a Protobuf message to ZMQ via REQ-REP method.
 // will be consolidated but this is also for rapid development.
 static void
-sendMessage(std::shared_ptr<::google::protobuf::Message> message)
+sendMessage(::google::protobuf::Message& message)
 {
     zmq::socket_t socket (*zmq_context, ZMQ_REQ);
     socket.connect ("tcp://localhost:55555");
     std::string str;
-    message->SerializeToString(&str);
+    message.SerializeToString(&str);
     int sz = str.length();
     zmq::message_t query(sz);
     memcpy(query.data (), str.c_str(), sz);

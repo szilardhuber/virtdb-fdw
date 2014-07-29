@@ -35,8 +35,8 @@ public:
                 std::shared_ptr<Expression> left = get_head()->Apply((Expr *)current->data.ptr_value, meta);
                 std::shared_ptr<Expression> right = get_head()->Apply((Expr *)current->next->data.ptr_value, meta);
                 std::shared_ptr<Expression> ret (new Expression);
-                ret->get_message()->mutable_composite()->mutable_left()->CopyFrom(*left->get_message().get());
-                *ret->get_message()->mutable_composite()->mutable_right() = *right->get_message();
+                ret->set_left(*left);
+                ret->set_right(*right);
                 switch (bool_expression->boolop) {
                     case AND_EXPR:
                         ret->set_operand("AND");
