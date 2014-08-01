@@ -1,7 +1,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 
-
 #include "expression.hh"
 #include "virtdb_fdw.h" // pulls in some postgres headers
 
@@ -30,6 +29,14 @@ extern "C" {
     #include <nodes/makefuncs.h>
     #include <miscadmin.h>
 }
+
+#include "filter.hh"
+#include "anyallfilter.hh"
+#include "boolexprfilter.hh"
+#include "defaultfilter.hh"
+#include "nulltestfilter.hh"
+#include "opexprfilter.hh"
+
 // standard headers
 #include <atomic>
 #include <exception>
@@ -41,6 +48,8 @@ extern "C" {
 
 zmq::context_t* zmq_context = NULL;
 namespace { namespace virtdb_fdw_priv {
+
+using namespace virtdb;
 
 // We dont't do anything here right now, it is intended only for optimizations.
 static void
@@ -117,12 +126,12 @@ static ForeignScan
 // Serializes a Protobuf message to ZMQ via REQ-REP method.
 // will be consolidated but this is also for rapid development.
 static void
-sendMessage(std::shared_ptr<::google::protobuf::Message> message)
+sendMessage(::google::protobuf::Message& message)
 {
     zmq::socket_t socket (*zmq_context, ZMQ_REQ);
     socket.connect ("tcp://localhost:55555");
     std::string str;
-    message->SerializeToString(&str);
+    message.SerializeToString(&str);
     int sz = str.length();
     zmq::message_t query(sz);
     memcpy(query.data (), str.c_str(), sz);
@@ -132,9 +141,8 @@ sendMessage(std::shared_ptr<::google::protobuf::Message> message)
 // Here we will convert the expressions to a serializable format and pass them
 // over the API but for now it only displays debug log.
 static void
-interpretExpression( Expr* clause )
+interpretExpression( Filter* chain, Expr* clause )
 {
-    using virtdb::Expression;
     static int level = 0;
     std::shared_ptr<Expression> expression(new Expression);
     expression->set_variable("Expr->type");
@@ -145,6 +153,7 @@ interpretExpression( Expr* clause )
     sendMessage(expression->get_message());
     elog(LOG, "[%s] - On level: %d", __func__, level);
     elog(LOG, "[%s] - Filter expression type: %d", __func__, clause->type);
+
     if (IsA(clause, BoolExpr))
     {
         const BoolExpr* bool_expression = reinterpret_cast<const BoolExpr*>(clause);
@@ -153,7 +162,7 @@ interpretExpression( Expr* clause )
         {
             Expr * expr = (Expr *)current->data.ptr_value;
             level++;
-            interpretExpression(expr);
+            interpretExpression(chain, expr);
             level--;
             current = current->next;
         }
@@ -183,12 +192,30 @@ cbBeginForeignScan( ForeignScanState *node,
 {
     elog(LOG, "[%s]", __func__);
     ListCell   *l;
-    foreach(l, node->ss.ps.plan->qual)
+    struct AttInMetadata * meta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
+    Filter* filterChain = new OpExprFilter();
+    filterChain->Add(new NullTestFilter());
+    filterChain->Add(new AnyAllFilter());
+    filterChain->Add(new BoolExprFilter());
+    filterChain->Add(new DefaultFilter());
+    try
     {
-        Expr* clause = (Expr*) lfirst(l);
-        interpretExpression(clause);
+        foreach(l, node->ss.ps.plan->qual)
+        {
+            Expr* clause = (Expr*) lfirst(l);
+            std::shared_ptr<Expression> expression = filterChain->Apply(clause, meta);
+            if (expression)
+            {
+                elog(LOG, "Expression is not null");
+                sendMessage(expression->get_message());
+            }
+        }
+        hasMoreData(true); //TODO: hack remove
     }
-    hasMoreData(true); //TODO: hack remove
+    catch(const std::exception & e)
+    {
+        elog(ERROR, "[%s:%d] internal error in %s: %s",__FILE__,__LINE__,__func__,e.what());
+    }
 }
 
 static TupleTableSlot *
