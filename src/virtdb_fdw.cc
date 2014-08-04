@@ -2,6 +2,7 @@
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 
 #include "expression.hh"
+#include "query.hh"
 #include "virtdb_fdw.h" // pulls in some postgres headers
 
 // ZeroMQ
@@ -112,13 +113,22 @@ static ForeignScan
                     __func__, scan_clauses->length);
     }
 
+    // 1. make sure floating point representation doesn't trick us
+    // 2. only set the limit if this is a single table
+    List* limit = NULL;
+    size_t nrels = bms_num_members(root->all_baserels);
+    if( nrels == 1 && root->limit_tuples > 0.9 )
+    {
+        limit = list_make1_int(0.1+root->limit_tuples);
+    }
+
     ForeignScan * ret =
         make_foreignscan(
             tlist,
             scan_clauses,
             scan_relid,
             NIL,
-            NIL);
+            limit);
 
     return ret;
 }
@@ -126,7 +136,7 @@ static ForeignScan
 // Serializes a Protobuf message to ZMQ via REQ-REP method.
 // will be consolidated but this is also for rapid development.
 static void
-sendMessage(::google::protobuf::Message& message)
+send_message(const ::google::protobuf::Message& message)
 {
     zmq::socket_t socket (*zmq_context, ZMQ_REQ);
     socket.connect ("tcp://localhost:55555");
@@ -136,37 +146,6 @@ sendMessage(::google::protobuf::Message& message)
     zmq::message_t query(sz);
     memcpy(query.data (), str.c_str(), sz);
     socket.send (query);
-}
-
-// Here we will convert the expressions to a serializable format and pass them
-// over the API but for now it only displays debug log.
-static void
-interpretExpression( Filter* chain, Expr* clause )
-{
-    static int level = 0;
-    std::shared_ptr<Expression> expression(new Expression);
-    expression->set_variable("Expr->type");
-    expression->set_operand("=");
-    std::ostringstream s;
-    s << clause->type;
-    expression->set_value(s.str().c_str());
-    sendMessage(expression->get_message());
-    elog(LOG, "[%s] - On level: %d", __func__, level);
-    elog(LOG, "[%s] - Filter expression type: %d", __func__, clause->type);
-
-    if (IsA(clause, BoolExpr))
-    {
-        const BoolExpr* bool_expression = reinterpret_cast<const BoolExpr*>(clause);
-        ListCell* current = bool_expression->args->head;
-        for (int i = 0; i < bool_expression->args->length; i++)
-        {
-            Expr * expr = (Expr *)current->data.ptr_value;
-            level++;
-            interpretExpression(chain, expr);
-            level--;
-            current = current->next;
-        }
-    }
 }
 
 // It is just a hack enabling rapid development. Will be implemented correctly.
@@ -200,16 +179,57 @@ cbBeginForeignScan( ForeignScanState *node,
     filterChain->Add(new DefaultFilter());
     try
     {
+        virtdb::Query query;
+
+        // Table name
+        std::string table_name{RelationGetRelationName(node->ss.ss_currentRelation)};
+        for (auto& c: table_name)
+        {
+            c = ::toupper(c);
+        }
+        query.set_table_name( table_name );
+
+        // Columns - TODO No aggregates are handled here
+        int n = node->ss.ps.plan->targetlist->length;
+        elog(LOG, "Number of columns: %d", n);
+        ListCell* cell = node->ss.ps.plan->targetlist->head;
+        for (int i = 0; i < n; i++)
+        {
+            if (!IsA(lfirst(cell), TargetEntry))
+            {
+                continue;
+            }
+            TargetEntry* target_entry = reinterpret_cast<TargetEntry*> (lfirst(cell));
+            query.add_column( target_entry->resname );
+            // elog(LOG, "\t\tColumn No: %d", target_entry->resno);
+            cell = cell->next;
+        }
+
+        // Filters
         foreach(l, node->ss.ps.plan->qual)
         {
             Expr* clause = (Expr*) lfirst(l);
-            std::shared_ptr<Expression> expression = filterChain->Apply(clause, meta);
-            if (expression)
-            {
-                elog(LOG, "Expression is not null");
-                sendMessage(expression->get_message());
-            }
+            query.add_filter( filterChain->Apply(clause, meta) );
         }
+
+        // Limit
+        // From: http://www.postgresql.org/docs/9.2/static/fdw-callbacks.html
+        // Information about the table to scan is accessible through the ForeignScanState node
+        // (in particular, from the underlying ForeignScan plan node, which contains any
+        // FDW-private information provided by GetForeignPlan).
+        ForeignScan *plan = reinterpret_cast<ForeignScan *>(node->ss.ps.plan);
+        if (plan->fdw_private)
+        {
+            query.set_limit( lfirst_int(plan->fdw_private->head) );
+        }
+
+        // Schema
+
+        // UserToken
+
+        // AccessInfo
+
+        send_message( query.get_message()) ;
         hasMoreData(true); //TODO: hack remove
     }
     catch(const std::exception & e)
