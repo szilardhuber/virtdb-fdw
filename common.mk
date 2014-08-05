@@ -9,7 +9,7 @@ ZMQ_CFLAGS := $(shell pkg-config --cflags libzmq) -I$(BUILD_ROOT)/src/cppzmq
 PROTOBUF_LDFLAGS := $(shell pkg-config --libs protobuf)
 PROTOBUF_CFLAGS := $(shell pkg-config --cflags protobuf)
 PROTOBUF_PATH := $(BUILD_ROOT)/src/proto/
-GTEST_PATH := $(BUILD_ROOT)/src/gtest-1.7.0
+GTEST_PATH := $(BUILD_ROOT)/src/gtest
 GTEST_CONFIG_STATUS := $(GTEST_PATH)/config.status
 # FIXME integrate libtool better ...
 GTEST_LIBDIR := $(GTEST_PATH)/lib/.libs/
