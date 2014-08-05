@@ -175,7 +175,7 @@ cbBeginForeignScan( ForeignScanState *node,
         }
         query.set_table_name( table_name );
 
-        // Columns - TODO No aggregates are handled here
+        // Columns
         int n = node->ss.ps.plan->targetlist->length;
         ListCell* cell = node->ss.ps.plan->targetlist->head;
         for (int i = 0; i < n; i++)
@@ -185,9 +185,14 @@ cbBeginForeignScan( ForeignScanState *node,
                 continue;
             }
             TargetEntry* target_entry = reinterpret_cast<TargetEntry*> (lfirst(cell));
-            if (target_entry->resname != nullptr)
+            if (IsA(target_entry->expr, Var))
             {
-                query.add_column( target_entry->resname );
+                Var* variable = reinterpret_cast<Var*>(target_entry->expr);
+                query.add_column( meta->tupdesc->attrs[variable->varattno-1]->attname.data );
+            }
+            else
+            {
+                elog(ERROR, "target_entry->expr is not a Var but: %d", target_entry->expr->type);
             }
             cell = cell->next;
         }
