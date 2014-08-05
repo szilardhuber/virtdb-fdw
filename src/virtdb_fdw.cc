@@ -52,7 +52,7 @@ extern "C" {
 
 using namespace virtdb;
 
-zmq::context_t* zmq_context = NULL;
+extern zmq::context_t* zmq_context;
 receiver_thread* worker_thread = NULL;
 
 namespace virtdb_fdw_priv {
@@ -185,8 +185,10 @@ cbBeginForeignScan( ForeignScanState *node,
                 continue;
             }
             TargetEntry* target_entry = reinterpret_cast<TargetEntry*> (lfirst(cell));
-            query.add_column( target_entry->resname );
-            // elog(LOG, "\t\tColumn No: %d", target_entry->resno);
+            if (target_entry->resname != nullptr)
+            {
+                query.add_column( target_entry->resname );
+            }
             cell = cell->next;
         }
 

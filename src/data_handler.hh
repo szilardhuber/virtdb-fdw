@@ -84,8 +84,7 @@ namespace virtdb {
             {
                 if (data.count(column_number) != 1)
                 {
-                    std::string error_string = "Error! No such column: " + std::to_string(column_number);
-                    throw std::invalid_argument(error_string);
+                    return true;
                 }
                 if (cursor < 0 || cursor >= data_length())
                 {

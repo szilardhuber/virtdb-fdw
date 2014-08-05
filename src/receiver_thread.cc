@@ -11,7 +11,7 @@
 #include "receiver_thread.hh"
 #include "data_handler.hh"
 
-extern zmq::context_t* zmq_context;
+zmq::context_t* zmq_context = NULL;
 
 using namespace virtdb;
 

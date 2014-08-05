@@ -1,7 +1,9 @@
+#pragma once
+
 #include <string>
 
 // Source: http://stackoverflow.com/questions/440133/how-do-i-create-a-random-alpha-numeric-string-in-c
-std::string gen_random(const int len) {
+inline std::string gen_random(const int len) {
     char * s = new char[len];
     static const char alphanum[] =
         "0123456789"
