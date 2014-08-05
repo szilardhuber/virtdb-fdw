@@ -1,5 +1,6 @@
 #include "query.hh"
 #include "expression.hh"
+#include "util.hh"
 
 using namespace virtdb::interface;
 
@@ -7,7 +8,13 @@ namespace virtdb {
 
 Query::Query()
 {
-    query_data->set_queryid("5");
+    // TODO ? sha1 ?
+    query_data->set_queryid(gen_random(32));
+}
+
+const ::std::string& Query::id() const
+{
+    return query_data->queryid();
 }
 
 void Query::set_table_name(std::string value)

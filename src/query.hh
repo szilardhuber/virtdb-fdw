@@ -17,6 +17,17 @@ class Expression;
 
         public:
             Query();
+            Query& operator=(const Query& source)
+            {
+                if (this != &source)
+                {
+                    *query_data = *source.query_data;
+                }
+                return *this;
+            }
+
+            // Id
+            const ::std::string& id() const;
 
             // Table
             void set_table_name(std::string value);
@@ -24,6 +35,8 @@ class Expression;
 
             // Columns
             void add_column(std::string column_name);
+            int columns_size() const { return query_data->columns_size(); }
+            std::string column(int i) const { return query_data->columns(i); } 
 
             // Filter
             void add_filter(std::shared_ptr<Expression> filter);
