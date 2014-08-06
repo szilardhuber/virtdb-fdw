@@ -35,8 +35,8 @@ namespace virtdb {
 
             // Columns
             void add_column(std::string column_name);
-            int columns_size() const { return query_data->columns_size(); }
-            std::string column(int i) const { return query_data->columns(i); }
+            int columns_size() const { return query_data->fields_size(); }
+            std::string column(int i) const { return query_data->fields(i).name(); }
 
             // Filter
             void add_filter(std::shared_ptr<expression> filter);

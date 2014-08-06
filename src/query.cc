@@ -28,7 +28,9 @@ const ::std::string& query::table_name() const {
 
 void query::add_column(std::string column_name)
 {
-    query_data->add_columns(column_name);
+    pb::Field* field = query_data->add_fields();
+    field->set_name(column_name);
+    field->mutable_desc()->set_type(pb::Kind::STRING);
 }
 
 void query::add_filter(std::shared_ptr<expression> filter)
