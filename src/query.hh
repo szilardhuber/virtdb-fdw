@@ -8,16 +8,16 @@
 
 namespace virtdb {
 
-class Expression;
+    class expression;
 
-    class Query {
+    class query {
         private:
             std::unique_ptr<virtdb::interface::pb::Query> query_data =
                     std::unique_ptr<virtdb::interface::pb::Query>(new virtdb::interface::pb::Query);
 
         public:
-            Query();
-            Query& operator=(const Query& source)
+            query();
+            query& operator=(const query& source)
             {
                 if (this != &source)
                 {
@@ -36,10 +36,10 @@ class Expression;
             // Columns
             void add_column(std::string column_name);
             int columns_size() const { return query_data->columns_size(); }
-            std::string column(int i) const { return query_data->columns(i); } 
+            std::string column(int i) const { return query_data->columns(i); }
 
             // Filter
-            void add_filter(std::shared_ptr<Expression> filter);
+            void add_filter(std::shared_ptr<expression> filter);
             const virtdb::interface::pb::Expression& get_filter(int index) { return query_data->filter(index); }
 
             // Limit

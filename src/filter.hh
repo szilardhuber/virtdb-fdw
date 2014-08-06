@@ -5,36 +5,36 @@
 
 namespace virtdb {
 
-class Filter
+class filter
 {
 private:
-  Filter* head;
-  Filter* next;
+  filter* head;
+  filter* next;
 private:
-  void Add(Filter* filter, Filter* head_)
+  void add(filter* new_filter, filter* head_)
   {
     if (next)
     {
-      next->Add(filter, head_);
+      next->add(new_filter, head_);
     }
     else
     {
-      filter->head = head_;
-      next = filter;
+      new_filter->head = head_;
+      next = new_filter;
     }
   }
 
 public:
-  void Add(Filter* filter)
+  void add(filter* new_filter)
   {
     head = this;
-    Add(filter, this);
+    add(new_filter, this);
   }
-  virtual std::shared_ptr<Expression> Apply(const Expr* clause, const AttInMetadata* meta)
+  virtual std::shared_ptr<expression> apply(const Expr* clause, const AttInMetadata* meta)
   {
     if (next)
     {
-        return next->Apply(clause, meta);
+        return next->apply(clause, meta);
     }
     else
     {
@@ -43,17 +43,17 @@ public:
   }
 
 protected:
-  Filter* get_head() const
+  filter* get_head() const
   {
     return head;
   }
 
-  virtual const Var* getVar(const Expr* clause) const { return nullptr; }
+  virtual const Var* get_var(const Expr* clause) const { return nullptr; }
 
-  size_t getFilterId(const Expr * clause) const
+  size_t get_filter_id(const Expr * clause) const
   {
     size_t filter_id = 9999999;
-    const Var * vp   = getVar(clause);
+    const Var * vp   = get_var(clause);
 
     if (vp && vp->varattno)
     {
@@ -63,7 +63,7 @@ protected:
     return filter_id;
   }
 
-  std::string getFilterOp(const Oid& oid)
+  std::string get_filter_op(const Oid& oid)
   {
     if (oid >= FirstBootstrapObjectId )
     {

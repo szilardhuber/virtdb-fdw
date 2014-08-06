@@ -1,6 +1,6 @@
 # BUILD_ROOT is required
 # XXX EXTRA_CLEAN = $(EXTENSION)--$(EXTVERSION).sql
-COMMON_FILE_NAMES = expression.cc query.cc receiver_thread.cc
+COMMON_FILE_NAMES = expression.cc query.cc receiver_thread.cc data_handler.cc
 PROTO_FILE_NAMES = common.proto meta_data.proto db_config.proto data.proto
 PROTO_FILES = $(patsubst %.proto,$(BUILD_ROOT)/src/proto/%.proto,$(PROTO_FILE_NAMES))
 COMMON_SOURCES =  $(patsubst %.cc,$(BUILD_ROOT)/src/%.cc,$(COMMON_FILE_NAMES))

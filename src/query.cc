@@ -6,48 +6,48 @@ using namespace virtdb::interface;
 
 namespace virtdb {
 
-Query::Query()
+query::query()
 {
     // TODO ? sha1 ?
     query_data->set_queryid(gen_random(32));
 }
 
-const ::std::string& Query::id() const
+const ::std::string& query::id() const
 {
     return query_data->queryid();
 }
 
-void Query::set_table_name(std::string value)
+void query::set_table_name(std::string value)
 {
     query_data->set_table(value);
 }
 
-const ::std::string& Query::table_name() const {
+const ::std::string& query::table_name() const {
     return query_data->table();
 }
 
-void Query::add_column(std::string column_name)
+void query::add_column(std::string column_name)
 {
     query_data->add_columns(column_name);
 }
 
-void Query::add_filter(std::shared_ptr<Expression> filter)
+void query::add_filter(std::shared_ptr<expression> filter)
 {
     *query_data->add_filter() = filter->get_message();
 }
 
-void Query::set_limit(uint64_t limit)
+void query::set_limit(uint64_t limit)
 {
     query_data->set_limit( limit );
 }
 
 
-pb::Query& Query::get_message()
+pb::Query& query::get_message()
 {
     return *query_data;
 }
 
-const pb::Query& Query::get_message() const
+const pb::Query& query::get_message() const
 {
     return *query_data;
 }

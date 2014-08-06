@@ -4,19 +4,18 @@
 
 namespace virtdb {
 
-class AnyAllFilter : public Filter
+class any_all_filter : public filter
 {
 public:
-    virtual std::shared_ptr<Expression>  Apply(const Expr* clause, const AttInMetadata* meta) override
+    virtual std::shared_ptr<expression>  apply(const Expr* clause, const AttInMetadata* meta) override
     {
-        ereport(LOG, (errmsg("Checking in anyall filter")));
-        return Filter::Apply(clause, meta);
+        return filter::apply(clause, meta);
 
         // Handling Any / All expressions is disabled for now, in these cases the condition is not passed to the external datasource
         /*
         if (!(IsA(clause, ScalarArrayOpExpr)))
         {
-            Filter::Apply(clause, meta);
+            Filter::apply(clause, meta);
         }
         else {
             const ScalarArrayOpExpr* array_expression = reinterpret_cast<const ScalarArrayOpExpr*>(clause);

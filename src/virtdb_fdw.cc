@@ -146,9 +146,9 @@ send_message(const ::google::protobuf::Message& message)
     std::string str;
     message.SerializeToString(&str);
     int sz = str.length();
-    zmq::message_t query(sz);
-    memcpy(query.data (), str.c_str(), sz);
-    socket.send (query);
+    zmq::message_t query_message(sz);
+    memcpy(query_message.data (), str.c_str(), sz);
+    socket.send (query_message);
 }
 
 
@@ -158,14 +158,14 @@ cbBeginForeignScan( ForeignScanState *node,
 {
     ListCell   *l;
     struct AttInMetadata * meta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
-    Filter* filterChain = new OpExprFilter();
-    filterChain->Add(new NullTestFilter());
-    filterChain->Add(new AnyAllFilter());
-    filterChain->Add(new BoolExprFilter());
-    filterChain->Add(new DefaultFilter());
+    filter* filterChain = new op_expr_filter();
+    filterChain->add(new nulltest_filter());
+    filterChain->add(new any_all_filter());
+    filterChain->add(new bool_expr_filter());
+    filterChain->add(new default_filter());
     try
     {
-        virtdb::Query query;
+        virtdb::query query_data;
 
         // Table name
         std::string table_name{RelationGetRelationName(node->ss.ss_currentRelation)};
@@ -173,7 +173,7 @@ cbBeginForeignScan( ForeignScanState *node,
         {
             c = ::toupper(c);
         }
-        query.set_table_name( table_name );
+        query_data.set_table_name( table_name );
 
         // Columns
         int n = node->ss.ps.plan->targetlist->length;
@@ -188,7 +188,7 @@ cbBeginForeignScan( ForeignScanState *node,
             if (IsA(target_entry->expr, Var))
             {
                 Var* variable = reinterpret_cast<Var*>(target_entry->expr);
-                query.add_column( meta->tupdesc->attrs[variable->varattno-1]->attname.data );
+                query_data.add_column( meta->tupdesc->attrs[variable->varattno-1]->attname.data );
             }
             else
             {
@@ -201,7 +201,7 @@ cbBeginForeignScan( ForeignScanState *node,
         foreach(l, node->ss.ps.plan->qual)
         {
             Expr* clause = (Expr*) lfirst(l);
-            query.add_filter( filterChain->Apply(clause, meta) );
+            query_data.add_filter( filterChain->apply(clause, meta) );
         }
 
         // Limit
@@ -212,7 +212,7 @@ cbBeginForeignScan( ForeignScanState *node,
         ForeignScan *plan = reinterpret_cast<ForeignScan *>(node->ss.ps.plan);
         if (plan->fdw_private)
         {
-            query.set_limit( lfirst_int(plan->fdw_private->head) );
+            query_data.set_limit( lfirst_int(plan->fdw_private->head) );
         }
 
         // Schema
@@ -222,9 +222,9 @@ cbBeginForeignScan( ForeignScanState *node,
         // AccessInfo
 
         // Prepare for getting data
-        worker_thread->add_query(node, query);
+        worker_thread->add_query(node, query_data);
 
-        send_message( query.get_message()) ;
+        send_message( query_data.get_message()) ;
     }
     catch(const std::exception & e)
     {

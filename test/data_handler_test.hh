@@ -36,11 +36,11 @@ namespace virtdb
     TEST_F(data_handler_test, errors)
     {
         int n_rows = 10;
-        Query query;
-        query.set_table_name( "Query test" );
-        query.add_column( gen_random(colname_length) );
+        query the_query;
+        the_query.set_table_name( "Query test" );
+        the_query.add_column( gen_random(colname_length) );
 
-        data_handler handler(query);
+        data_handler handler(the_query);
         virtdb::interface::pb::Column data = generate_string_data(n_rows, true);
         handler.push(0, data);
 
@@ -64,13 +64,13 @@ namespace virtdb
         {
             int n_rows = 1000;
             int n_columns = 10;
-            Query query;
-            query.set_table_name( "Query test" );
+            query the_query;
+            the_query.set_table_name( "Query test" );
             for (int i = 0; i < n_columns; i++)
             {
-                query.add_column( gen_random(colname_length) );
+                the_query.add_column( gen_random(colname_length) );
             }
-            data_handler handler(query);
+            data_handler handler(the_query);
 
             std::vector<virtdb::interface::pb::Column> columns;
             for (int i = 0; i < n_columns; i++)

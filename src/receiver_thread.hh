@@ -7,7 +7,7 @@
 struct ForeignScanState;
 namespace virtdb
 {
-    class Query;
+    class query;
     class data_handler;
 }
 
@@ -25,7 +25,7 @@ namespace virtdb {
             std::map<std::string, cv_data> cv;
             std::map<const ForeignScanState* const, data_handler* > active_queries;
         public:
-            void add_query(const ForeignScanState* const node, const virtdb::Query& query);
+            void add_query(const ForeignScanState* const node, const virtdb::query& query);
             void remove_query(const ForeignScanState* const node);
             void stop();
             data_handler* get_data_handler(const ForeignScanState* const node);

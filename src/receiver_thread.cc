@@ -15,9 +15,9 @@ zmq::context_t* zmq_context = NULL;
 
 using namespace virtdb;
 
-void receiver_thread::add_query(const ForeignScanState* const node, const virtdb::Query& query)
+void receiver_thread::add_query(const ForeignScanState* const node, const virtdb::query& query_data)
 {
-    active_queries[node] = new data_handler(query);
+    active_queries[node] = new data_handler(query_data);
 }
 
 void receiver_thread::remove_query(const ForeignScanState* const node)
