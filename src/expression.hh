@@ -7,13 +7,13 @@
 #include <memory>
 
 namespace virtdb {
-    class Expression {
+    class expression {
         private:
             std::unique_ptr<virtdb::interface::pb::Expression> expr = nullptr;
             virtdb::interface::pb::Expression* weak;
-            mutable std::unique_ptr<Expression> _left = nullptr;
-            mutable std::unique_ptr<Expression> _right = nullptr;
-            Expression(virtdb::interface::pb::Expression* source) : weak(source) {}
+            mutable std::unique_ptr<expression> _left = nullptr;
+            mutable std::unique_ptr<expression> _right = nullptr;
+            expression(virtdb::interface::pb::Expression* source) : weak(source) {}
             virtdb::interface::pb::Expression& self() {
                 return (expr != nullptr) ? *expr : *weak;
             }
@@ -22,7 +22,7 @@ namespace virtdb {
             }
 
         public:
-            Expression() : expr(new virtdb::interface::pb::Expression) {}
+            expression() : expr(new virtdb::interface::pb::Expression) {}
 
             // Expression
             void set_operand(std::string value);
@@ -35,10 +35,10 @@ namespace virtdb {
             const ::std::string& value() const;
 
             // CompositeExpression
-            void set_left(const Expression& left);
-            std::unique_ptr<Expression>& left () const;
-            void set_right(const Expression& right);
-            std::unique_ptr<Expression>& right () const;
+            void set_left(const expression& left);
+            std::unique_ptr<expression>& left () const;
+            void set_right(const expression& right);
+            std::unique_ptr<expression>& right () const;
 
             // Accessing encapsulated object
             virtdb::interface::pb::Expression& get_message();

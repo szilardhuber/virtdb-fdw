@@ -4,22 +4,22 @@
 
 namespace virtdb {
 
-class OpExprFilter : public Filter
+class op_expr_filter : public filter
 {
 public:
-    virtual std::shared_ptr<Expression> Apply(const Expr* clause, const AttInMetadata* meta) override
+    virtual std::shared_ptr<expression> apply(const Expr* clause, const AttInMetadata* meta) override
     {
         ereport(LOG, (errmsg("Checking in OPEXPR filter")));
         if (!(IsA(clause, OpExpr)))
         {
-            return Filter::Apply(clause, meta);
+            return filter::apply(clause, meta);
         }
         else
         {
             const OpExpr * oe = reinterpret_cast<const OpExpr*>(clause);
 
-            size_t filter_id = getFilterId(clause);
-            std::string filter_op = getFilterOp(oe->opno);
+            size_t filter_id = get_filter_id(clause);
+            std::string filter_op = get_filter_op(oe->opno);
             if (filter_op.empty())
             {
                 return NULL;
@@ -99,7 +99,7 @@ public:
 
                 if( filter_val && filter_id != 9999999 )
                 {
-                    std::shared_ptr<Expression> ret (new Expression);
+                    std::shared_ptr<expression> ret (new expression);
                     ret->set_variable(filter_colname);
                     ret->set_operand(filter_op);
                     ret->set_value(filter_val);
@@ -112,7 +112,7 @@ public:
     }
 
 protected:
-    virtual const Var* getVar(const Expr* clause) const
+    virtual const Var* get_var(const Expr* clause) const
     {
         Node * lop = get_leftop(clause);
         if( !(lop && (IsA(lop,RelabelType) || IsA(lop,Var))))

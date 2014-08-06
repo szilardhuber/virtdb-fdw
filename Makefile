@@ -7,7 +7,7 @@ BUILD_ROOT := $(shell pwd)
 include ./common.mk
 
 MODULE_big = virtdb_fdw
-OBJS = src/virtdb_fdw_main.o src/virtdb_fdw.o $(PROTO_OBJECTS)
+OBJS = src/virtdb_fdw_main.o src/virtdb_fdw.o $(COMMON_OBJS)
 SHLIB_LINK = -lstdc++
 DATA = $(EXTENSION)--$(EXTVERSION).sql
 EXTRA_CLEAN = $(EXTENSION)--$(EXTVERSION).sql
@@ -29,7 +29,7 @@ gtest-pkg-build-all: gtest-pkg-configure gtest-pkg-lib
 gtest-pkg-configure: $(GTEST_CONFIG_STATUS)
 
 $(GTEST_CONFIG_STATUS):
-	@echo "doing configure in gtest in " $(GTEST_PATH) 
+	@echo "doing configure in gtest in " $(GTEST_PATH)
 	cd $(GTEST_PATH) ; ./configure
 	@echo "configure done in gtest"
 
@@ -54,11 +54,14 @@ test-build-clean:
 	@echo "cleaning tests"
 	make -C test/ clean
 
-src/virtdb_fdw.o: $(PROTO_OBJECTS)
+src/virtdb_fdw.o: $(COMMON_OBJS)
 
 $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 	echo $< $@
 	cp $< $@
+
+src/%.o: src/%.cc
+	g++ -c -o $@ $< $(CXXFLAGS)
 
 virtdb-clean: test-build-clean gtest-pkg-clean clean
 	rm -f $(PROTO_OBJECTS) $(OBJS) $(shell find ./ -name "*.pb.*") $(EXTENSION)--$(EXTVERSION).sql
