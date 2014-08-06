@@ -4,26 +4,20 @@
 
 namespace virtdb {
 
-class BoolExprFilter : public Filter
+class bool_expr_filter : public filter
 {
 public:
-    virtual std::shared_ptr<Expression> Apply(const Expr* clause, const AttInMetadata* meta) override
+    virtual std::shared_ptr<expression> apply(const Expr* clause, const AttInMetadata* meta) override
     {
-        ereport(LOG, (errmsg("Checking in BOOLEXPR filter")));
         if (!(IsA(clause, BoolExpr)))
         {
-            return Filter::Apply(clause, meta);
+            return filter::apply(clause, meta);
         }
         else // Turned off as it is not working yet
         {
             const BoolExpr* bool_expression = reinterpret_cast<const BoolExpr*>(clause);
 
             // List	   *args;			/* arguments to this expression */
-            ereport(LOG, (errmsg("xpr: %d", bool_expression->xpr.type)));
-            ereport(LOG, (errmsg("boolop: %d", (int)bool_expression->boolop)));
-            ereport(LOG, (errmsg("location: %d", bool_expression->location)));
-            ereport(LOG, (errmsg("args->length: %d", bool_expression->args->length)));
-
             if (bool_expression->args->length != 2)
             {
                 ereport(ERROR, (
@@ -32,9 +26,9 @@ public:
             }
             else {
                 ListCell* current = bool_expression->args->head;
-                std::shared_ptr<Expression> left = get_head()->Apply((Expr *)current->data.ptr_value, meta);
-                std::shared_ptr<Expression> right = get_head()->Apply((Expr *)current->next->data.ptr_value, meta);
-                std::shared_ptr<Expression> ret (new Expression);
+                std::shared_ptr<expression> left = get_head()->apply((Expr *)current->data.ptr_value, meta);
+                std::shared_ptr<expression> right = get_head()->apply((Expr *)current->next->data.ptr_value, meta);
+                std::shared_ptr<expression> ret (new expression);
                 ret->set_left(*left);
                 ret->set_right(*right);
                 switch (bool_expression->boolop) {

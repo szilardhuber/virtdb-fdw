@@ -3,6 +3,8 @@
 
 #include "expression.hh"
 #include "query.hh"
+#include "receiver_thread.hh"
+#include "data_handler.hh"
 #include "virtdb_fdw.h" // pulls in some postgres headers
 
 // ZeroMQ
@@ -46,11 +48,15 @@ extern "C" {
 #include <ctype.h>
 #include <stdlib.h>
 #include <memory>
-
-zmq::context_t* zmq_context = NULL;
-namespace { namespace virtdb_fdw_priv {
+#include <future>
 
 using namespace virtdb;
+
+extern zmq::context_t* zmq_context;
+receiver_thread* worker_thread = NULL;
+
+namespace virtdb_fdw_priv {
+
 
 // We dont't do anything here right now, it is intended only for optimizations.
 static void
@@ -58,8 +64,6 @@ cbGetForeignRelSize( PlannerInfo *root,
                      RelOptInfo *baserel,
                      Oid foreigntableid )
 {
-    elog(LOG, "[%s] - Default row estimation: %f", __func__, baserel->rows);
-    elog(LOG, "[%s] - Default row width: %d", __func__, baserel->width);
 }
 
 // We also don't intend to put this to the public API for now so this
@@ -71,7 +75,6 @@ cbGetForeignPaths( PlannerInfo *root,
 {
     Cost startup_cost = 0;
     Cost total_cost = startup_cost + baserel->rows * baserel->width;
-    elog(LOG, "[%s] - Total cost: %.2f", __func__, total_cost);
 
     add_path(baserel,
              reinterpret_cast<Path *>(create_foreignscan_path(
@@ -143,43 +146,26 @@ send_message(const ::google::protobuf::Message& message)
     std::string str;
     message.SerializeToString(&str);
     int sz = str.length();
-    zmq::message_t query(sz);
-    memcpy(query.data (), str.c_str(), sz);
-    socket.send (query);
+    zmq::message_t query_message(sz);
+    memcpy(query_message.data (), str.c_str(), sz);
+    socket.send (query_message);
 }
 
-// It is just a hack enabling rapid development. Will be implemented correctly.
-static bool
-hasMoreData(bool reset = false)
-{
-    static int counter = 0;
-    if (reset)
-    {
-        counter = 0;
-        return true;
-    }
-    if (counter++ < 2)
-    {
-        return true;
-    }
-    return false;
-}
 
 static void
 cbBeginForeignScan( ForeignScanState *node,
                     int eflags )
 {
-    elog(LOG, "[%s]", __func__);
     ListCell   *l;
     struct AttInMetadata * meta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
-    Filter* filterChain = new OpExprFilter();
-    filterChain->Add(new NullTestFilter());
-    filterChain->Add(new AnyAllFilter());
-    filterChain->Add(new BoolExprFilter());
-    filterChain->Add(new DefaultFilter());
+    filter* filterChain = new op_expr_filter();
+    filterChain->add(new nulltest_filter());
+    filterChain->add(new any_all_filter());
+    filterChain->add(new bool_expr_filter());
+    filterChain->add(new default_filter());
     try
     {
-        virtdb::Query query;
+        virtdb::query query_data;
 
         // Table name
         std::string table_name{RelationGetRelationName(node->ss.ss_currentRelation)};
@@ -187,11 +173,10 @@ cbBeginForeignScan( ForeignScanState *node,
         {
             c = ::toupper(c);
         }
-        query.set_table_name( table_name );
+        query_data.set_table_name( table_name );
 
-        // Columns - TODO No aggregates are handled here
+        // Columns
         int n = node->ss.ps.plan->targetlist->length;
-        elog(LOG, "Number of columns: %d", n);
         ListCell* cell = node->ss.ps.plan->targetlist->head;
         for (int i = 0; i < n; i++)
         {
@@ -200,8 +185,15 @@ cbBeginForeignScan( ForeignScanState *node,
                 continue;
             }
             TargetEntry* target_entry = reinterpret_cast<TargetEntry*> (lfirst(cell));
-            query.add_column( target_entry->resname );
-            // elog(LOG, "\t\tColumn No: %d", target_entry->resno);
+            if (IsA(target_entry->expr, Var))
+            {
+                Var* variable = reinterpret_cast<Var*>(target_entry->expr);
+                query_data.add_column( meta->tupdesc->attrs[variable->varattno-1]->attname.data );
+            }
+            else
+            {
+                elog(ERROR, "target_entry->expr is not a Var but: %d", target_entry->expr->type);
+            }
             cell = cell->next;
         }
 
@@ -209,7 +201,7 @@ cbBeginForeignScan( ForeignScanState *node,
         foreach(l, node->ss.ps.plan->qual)
         {
             Expr* clause = (Expr*) lfirst(l);
-            query.add_filter( filterChain->Apply(clause, meta) );
+            query_data.add_filter( filterChain->apply(clause, meta) );
         }
 
         // Limit
@@ -220,7 +212,7 @@ cbBeginForeignScan( ForeignScanState *node,
         ForeignScan *plan = reinterpret_cast<ForeignScan *>(node->ss.ps.plan);
         if (plan->fdw_private)
         {
-            query.set_limit( lfirst_int(plan->fdw_private->head) );
+            query_data.set_limit( lfirst_int(plan->fdw_private->head) );
         }
 
         // Schema
@@ -229,8 +221,10 @@ cbBeginForeignScan( ForeignScanState *node,
 
         // AccessInfo
 
-        send_message( query.get_message()) ;
-        hasMoreData(true); //TODO: hack remove
+        // Prepare for getting data
+        worker_thread->add_query(node, query_data);
+
+        send_message( query_data.get_message()) ;
     }
     catch(const std::exception & e)
     {
@@ -242,111 +236,102 @@ static TupleTableSlot *
 cbIterateForeignScan(ForeignScanState *node)
 {
     struct AttInMetadata * meta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
-    elog(LOG, "[%s]", __func__);
-    TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
-    try
+    data_handler* handler = worker_thread->get_data_handler(node);
+    if (!handler->received_data())
     {
+        worker_thread->wait_for_data(node);
+    }
+    if (handler->has_data())
+    {
+        TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
         ExecClearTuple(slot);
-        if (hasMoreData()) {
+        try
+        {
+            handler->read_next();
             for (int i = 0; i < node->ss.ss_currentRelation->rd_att->natts; i++)
             {
-                slot->tts_isnull[i] = false;
-                switch( meta->tupdesc->attrs[i]->atttypid )
+                if (handler->is_null(i))
                 {
-                    case INT4OID: {
-                        slot->tts_values[i] = Int32GetDatum(i);
-                        break;
-                    }
-                    case INT8OID: {
-                        slot->tts_values[i] = Int64GetDatum(i);
-                        break;
-                    }
-                    case FLOAT8OID:  {
-                        slot->tts_values[i] = Float8GetDatum(i);
-                        break;
-                    }
-                    case VARCHAROID: {
-                        if (false) {  //TODO: disabled until we get real data
-                            // bytea *vcdata = reinterpret_cast<bytea *>(palloc(field_bytes[i] + VARHDRSZ));
-                            // ::memcpy( VARDATA(vcdata), it.data_->get<char>(i,it.row_,fb), field_bytes[i] );
-                            // SET_VARSIZE(vcdata, field_bytes[i] + VARHDRSZ);
-                            // slot->tts_values[i] = PointerGetDatum(vcdata);
-                        } else {
-                            slot->tts_isnull[i] = true;
-                        }
-                        break;
-                    }
-                    case NUMERICOID: {
-                        if (false) {
-                            // slot->tts_values[i] =
-                            //     DirectFunctionCall3( numeric_in,
-                            //                             CStringGetDatum(it.data_->get<char>(c,it.row_,fb)),
-                            //                             ObjectIdGetDatum(InvalidOid),
-                            //                             Int32GetDatum(state->meta_->tupdesc->attrs[c]->atttypmod) );
-                        } else {
-                            slot->tts_isnull[i] = true;
-                        }
-                        break;
-                    }
-                    case DATEOID: {
-                        if (false) {
-                            // slot->tts_values[i] =
-                            //     DirectFunctionCall1( date_in, CStringGetDatum(it.data_->get<char>(c,it.row_,fb)));
-                        } else {
-                            slot->tts_isnull[i] = true;
-                        }
-                        break;
-                    }
-                    case TIMEOID:
+                    slot->tts_isnull[i] = true;
+                }
+                else
+                {
+                    slot->tts_isnull[i] = false;
+                    switch( meta->tupdesc->attrs[i]->atttypid )
                     {
-                        if (false) {
-                            // slot->tts_values[i] =
-                            //     DirectFunctionCall1( time_in, CStringGetDatum(it.data_->get<char>(c,it.row_,fb)));
-                        } else {
-                            slot->tts_isnull[i] = true;
+                        case VARCHAROID: {
+                            const std::string* const data = handler->get_string(i);
+                            if (data)
+                            {
+                                bytea *vcdata = reinterpret_cast<bytea *>(palloc(data->size() + VARHDRSZ));
+                                ::memcpy( VARDATA(vcdata), data->c_str(), data->size() );
+                                SET_VARSIZE(vcdata, data->size() + VARHDRSZ);
+                                slot->tts_values[i] = PointerGetDatum(vcdata);
+                            }
+                            else {
+                                slot->tts_isnull[i] = true;
+                            }
+                            break;
                         }
-                        break;
-                    }
-                    default: {
-                        slot->tts_isnull[i] = true;
-                        break;
+                        default: {
+                            elog(ERROR, "Unhandled attribute type: %d", meta->tupdesc->attrs[i]->atttypid);
+                            slot->tts_isnull[i] = true;
+                            break;
+                        }
                     }
                 }
             }
             ExecStoreVirtualTuple(slot);
         }
+        catch(const std::exception & e)
+        {
+            elog(ERROR, "[%s:%d] internal error in %s: %s",__FILE__,__LINE__,__func__, e.what());
+        }
+        return slot;
     }
-    catch(const std::exception & e)
+    else
     {
-        elog(ERROR, "[%s:%d] internal error in %s: %s",__FILE__,__LINE__,__func__,e.what());
+        // return NULL if there is no more data.
+        return NULL;
     }
-    return slot;
 }
 
 static void
 cbReScanForeignScan( ForeignScanState *node )
 {
+    elog(LOG, "[%s]", __func__);
 }
 
 static void
 cbEndForeignScan(ForeignScanState *node)
 {
+    worker_thread->remove_query(node);
 }
 
-}}
+}
 
 // C++ implementation of the forward declared function
 extern "C" {
 
 void PG_init_virtdb_fdw_cpp(void)
 {
-    using virtdb::interface::pb::Column;
-    std::shared_ptr<Column> data_ptr(new Column);
-    zmq_context = new zmq::context_t (1);
+    try
+    {
+        zmq_context = new zmq::context_t (1);
+        worker_thread = new receiver_thread();
+        new std::thread(&receiver_thread::run, worker_thread);
+    }
+    catch(const std::exception & e)
+    {
+        elog(ERROR, "[%s:%d] internal error in %s: %s",__FILE__,__LINE__,__func__,e.what());
+    }
 }
 
 void PG_fini_virtdb_fdw_cpp(void)
 {
+    delete zmq_context;
+    worker_thread->stop();
+    delete worker_thread;
 }
 
 Datum virtdb_fdw_status_cpp(PG_FUNCTION_ARGS)

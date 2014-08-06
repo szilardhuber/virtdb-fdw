@@ -2,6 +2,7 @@
 #include <vector>
 
 #include "expression_test.hh"
+#include "data_handler_test.hh"
 
 // the purpose of these tests is to make sure
 // gtest includes and libs are properly integrated

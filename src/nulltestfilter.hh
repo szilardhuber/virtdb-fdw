@@ -4,20 +4,19 @@
 
 namespace virtdb {
 
-class NullTestFilter : public Filter
+class nulltest_filter : public filter
 {
 public:
-    virtual std::shared_ptr<Expression> Apply(const Expr* clause, const AttInMetadata* meta) override
+    virtual std::shared_ptr<expression> apply(const Expr* clause, const AttInMetadata* meta) override
     {
-        ereport(LOG, (errmsg("Checking in NULLTEST filter")));
         if (!(IsA(clause, NullTest)))
         {
-            return Filter::Apply(clause, meta);
+            return filter::apply(clause, meta);
         }
         else
         {
             const NullTest * null_test  = reinterpret_cast<const NullTest*>(clause);
-            size_t filter_id      = getFilterId(clause);
+            size_t filter_id      = get_filter_id(clause);
             char * filter_colname = 0;
             if( meta &&
                 meta->tupdesc &&
@@ -37,7 +36,7 @@ public:
             {
                 filter_op = "IS NOT";
             }
-            std::shared_ptr<Expression> ret (new Expression);
+            std::shared_ptr<expression> ret (new expression);
             ret->set_variable(filter_colname);
             ret->set_operand(filter_op);
             ret->set_value(filter_val);
@@ -46,7 +45,7 @@ public:
     }
 
 protected:
-  virtual const Var* getVar(const Expr* clause) const override
+  virtual const Var* get_var(const Expr* clause) const override
   {
     const NullTest * null_test = reinterpret_cast<const NullTest*>(clause);
     return reinterpret_cast<Var*>(null_test->arg);
