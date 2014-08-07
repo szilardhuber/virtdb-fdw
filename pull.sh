@@ -1,7 +1,7 @@
 #!/bin/sh
 git submodule update --init --remote
-git pull --recurse-submodules
 git checkout master
+git pull --recurse-submodules
 git remote add upstream https://github.com/starschema/virtdb-fdw.git
 git fetch origin -v
 git fetch upstream -v
