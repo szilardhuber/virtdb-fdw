@@ -27,7 +27,7 @@ namespace virtdb
         EXPECT_NO_THROW(
         {
             std::shared_ptr<expression> simple_expression(new expression);
-            EXPECT_NE(simple_expression.get(), nullptr);
+            EXPECT_EQ(simple_expression.get(), nullptr);
 
             std::shared_ptr<expression> composite_expression(new expression);
             composite_expression->set_operand("AND");
