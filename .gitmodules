@@ -1,6 +1,6 @@
 [submodule "src/proto"]
 	path = src/proto
-	url = git@github.com:starschema/virtdb-proto.git
+	url = https://github.com/starschema/virtdb-proto.git
         branch = master
 [submodule "src/cppzmq"]
 	path = src/cppzmq
