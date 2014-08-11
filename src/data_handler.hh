@@ -11,13 +11,21 @@ namespace virtdb {
             const int columns_count;
             const std::string queryid;
             // Not a vector as we may not get the columns in order
-            std::map<int, virtdb::interface::pb::Column> data;
+            std::map<int, std::vector<virtdb::interface::pb::Column> > data;
             std::map<std::string, int>  column_names;
             int cursor = -1;
+            int inner_cursor = -1;
+            int current_chunk = 0;
 
-            int data_length() const;
+            // int data_length() const;
+
+            virtdb::interface::pb::Column& chunk(int column_index, int chunk_index)
+            {
+                return data.find(column_index)->second[chunk_index];
+            }
 
         public:
+            int data_length() const;
             data_handler(const query& query_data);
 
             const std::string& query_id() const;
