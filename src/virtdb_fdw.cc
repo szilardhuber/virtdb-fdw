@@ -141,7 +141,7 @@ static ForeignScan
 static void
 send_message(const ::google::protobuf::Message& message)
 {
-    zmq::socket_t socket (*zmq_context, ZMQ_REQ);
+    zmq::socket_t socket (*zmq_context, ZMQ_PUSH);
     socket.connect ("tcp://localhost:55555");
     std::string str;
     message.SerializeToString(&str);
