@@ -12,6 +12,7 @@ namespace virtdb {
 
     class query {
         private:
+            std::map<int, int> columns; // column_id -> column_number_in_pb_query lookup
             std::unique_ptr<virtdb::interface::pb::Query> query_data =
                     std::unique_ptr<virtdb::interface::pb::Query>(new virtdb::interface::pb::Query);
 
@@ -34,9 +35,10 @@ namespace virtdb {
             const ::std::string& table_name() const;
 
             // Columns
-            void add_column(std::string column_name);
+            void add_column(int column_id, std::string column_name);
             int columns_size() const { return query_data->fields_size(); }
             std::string column(int i) const { return query_data->fields(i).name(); }
+            int column_id(int i) const { return columns.find(i)->second; }
 
             // Filter
             void add_filter(std::shared_ptr<expression> filter);

@@ -54,6 +54,8 @@ test-build-clean:
 	@echo "cleaning tests"
 	make -C test/ clean
 
+src/virtdb_fdw.cc: $(COMMON_SOURCES)
+
 src/virtdb_fdw.o: $(COMMON_OBJS)
 
 $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql

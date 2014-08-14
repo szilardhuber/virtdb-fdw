@@ -9,7 +9,7 @@ data_handler::data_handler(const query& query_data) :
     for (int i = 0; i < columns_count; i++)
     {
         std::string colname = query_data.column(i);
-        column_names[colname] = i;
+        column_names[colname] = query_data.column_id(i);
     }
 }
 
@@ -23,13 +23,13 @@ void data_handler::push(std::string name, virtdb::interface::pb::Column new_data
     push(column_names[name], new_data);
 }
 
-void data_handler::push(int column_number, virtdb::interface::pb::Column new_data)
+void data_handler::push(int column_id, virtdb::interface::pb::Column new_data)
 {
-    if (data.count(column_number) != 1)
+    if (data.count(column_id) != 1)
     {
-        data[column_number] = std::vector<virtdb::interface::pb::Column>();
+        data[column_id] = std::vector<virtdb::interface::pb::Column>();
     }
-    data[column_number].push_back(new_data);
+    data[column_id].push_back(new_data);
 }
 
 bool data_handler::received_data() const
@@ -75,10 +75,10 @@ bool data_handler::read_next()
     return true;
 }
 
-bool data_handler::is_null(int column_number) const
+bool data_handler::is_null(int column_id) const
 {
     try {
-        if (data.count(column_number) != 1)
+        if (data.count(column_id) != 1)
         {
             return true;
         }
@@ -87,7 +87,7 @@ bool data_handler::is_null(int column_number) const
             std::string error_string = "Error! Invalid row: " + std::to_string(cursor);
             throw std::invalid_argument(error_string);
         }
-        return data.find(column_number)->second[current_chunk].data().isnull(inner_cursor);
+        return data.find(column_id)->second[current_chunk].data().isnull(inner_cursor);
     }
     catch(const ::google::protobuf::FatalException & e)
     {
@@ -96,12 +96,12 @@ bool data_handler::is_null(int column_number) const
     }
 }
 
-const std::string* const data_handler::get_string(int column_number) const
+const std::string* const data_handler::get_string(int column_id) const
 {
     try {
-        if (is_null(column_number))
+        if (is_null(column_id))
             return NULL;
-        return &data.find(column_number)->second[current_chunk].data().stringvalue(inner_cursor);
+        return &data.find(column_id)->second[current_chunk].data().stringvalue(inner_cursor);
     }
     catch(const ::google::protobuf::FatalException & e)
     {
