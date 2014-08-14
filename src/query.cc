@@ -26,8 +26,9 @@ const ::std::string& query::table_name() const {
     return query_data->table();
 }
 
-void query::add_column(std::string column_name)
+void query::add_column(int column_id, std::string column_name)
 {
+    columns[query_data->fields_size()] = column_id;
     pb::Field* field = query_data->add_fields();
     field->set_name(column_name);
     field->mutable_desc()->set_type(pb::Kind::STRING);

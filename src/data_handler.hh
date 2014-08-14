@@ -24,13 +24,13 @@ namespace virtdb {
                 return data.find(column_index)->second[chunk_index];
             }
 
+            void push(int column_id, virtdb::interface::pb::Column new_data);
         public:
             int data_length() const;
             data_handler(const query& query_data);
 
             const std::string& query_id() const;
             void push(std::string name, virtdb::interface::pb::Column new_data);
-            void push(int column_number, virtdb::interface::pb::Column new_data);
 
             // Returns true if we have received data for all needed columns
             bool received_data() const;

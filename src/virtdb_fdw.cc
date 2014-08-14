@@ -151,11 +151,29 @@ send_message(const ::google::protobuf::Message& message)
     socket.send (query_message);
 }
 
+Var* get_variable(TargetEntry* target_entry)
+{
+    if (IsA(target_entry->expr, Var))
+    {
+        return reinterpret_cast<Var*>(target_entry->expr);
+    }
+    else if (IsA(target_entry->expr, CoerceViaIO))
+    {
+        CoerceViaIO* coerce = reinterpret_cast<CoerceViaIO*>(target_entry->expr);
+        return reinterpret_cast<Var*>(coerce->arg);
+    }
+    else
+    {
+        return NULL;
+    }
+}
 
 static void
 cbBeginForeignScan( ForeignScanState *node,
                     int eflags )
 {
+    // elog_node_display(INFO, "node: ", node->ss.ps.plan, true);
+
     ListCell   *l;
     struct AttInMetadata * meta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
     filter* filterChain = new op_expr_filter();
@@ -185,10 +203,11 @@ cbBeginForeignScan( ForeignScanState *node,
                 continue;
             }
             TargetEntry* target_entry = reinterpret_cast<TargetEntry*> (lfirst(cell));
-            if (IsA(target_entry->expr, Var))
+            Var* variable = get_variable(target_entry);
+            if (variable != nullptr)
             {
-                Var* variable = reinterpret_cast<Var*>(target_entry->expr);
-                query_data.add_column( meta->tupdesc->attrs[variable->varattno-1]->attname.data );
+                // elog(LOG, "Column: %s (%d)", meta->tupdesc->attrs[variable->varattno-1]->attname.data, variable->varattno-1);
+                query_data.add_column( variable->varattno-1, meta->tupdesc->attrs[variable->varattno-1]->attname.data );
             }
             else
             {
@@ -248,38 +267,57 @@ cbIterateForeignScan(ForeignScanState *node)
         try
         {
             handler->read_next();
-            for (int i = 0; i < node->ss.ss_currentRelation->rd_att->natts; i++)
+            int n = node->ss.ps.plan->targetlist->length;
+            ListCell* cell = node->ss.ps.plan->targetlist->head;
+            for (int i = 0; i < n; i++)
             {
-                if (handler->is_null(i))
+                int column_id = 0;
+                if (!IsA(lfirst(cell), TargetEntry))
                 {
-                    slot->tts_isnull[i] = true;
+                    continue;
+                }
+                TargetEntry* target_entry = reinterpret_cast<TargetEntry*> (lfirst(cell));
+                Var* variable = get_variable(target_entry);
+                if (variable)
+                {
+                    column_id = variable->varattno-1;
                 }
                 else
                 {
-                    slot->tts_isnull[i] = false;
-                    switch( meta->tupdesc->attrs[i]->atttypid )
+                    elog(ERROR, "target_entry->expr is not a Var but: %d", target_entry->expr->type);
+                }
+
+                if (handler->is_null(column_id))
+                {
+                    slot->tts_isnull[column_id] = true;
+                }
+                else
+                {
+                    slot->tts_isnull[column_id] = false;
+                    switch( meta->tupdesc->attrs[column_id]->atttypid )
                     {
                         case VARCHAROID: {
-                            const std::string* const data = handler->get_string(i);
+                            const std::string* const data = handler->get_string(column_id);
                             if (data)
                             {
                                 bytea *vcdata = reinterpret_cast<bytea *>(palloc(data->size() + VARHDRSZ));
                                 ::memcpy( VARDATA(vcdata), data->c_str(), data->size() );
                                 SET_VARSIZE(vcdata, data->size() + VARHDRSZ);
-                                slot->tts_values[i] = PointerGetDatum(vcdata);
+                                slot->tts_values[column_id] = PointerGetDatum(vcdata);
                             }
                             else {
-                                slot->tts_isnull[i] = true;
+                                slot->tts_isnull[column_id] = true;
                             }
                             break;
                         }
                         default: {
-                            elog(ERROR, "Unhandled attribute type: %d", meta->tupdesc->attrs[i]->atttypid);
-                            slot->tts_isnull[i] = true;
+                            elog(ERROR, "Unhandled attribute type: %d", meta->tupdesc->attrs[column_id]->atttypid);
+                            slot->tts_isnull[column_id] = true;
                             break;
                         }
                     }
                 }
+                cell = cell->next;
             }
             ExecStoreVirtualTuple(slot);
         }
