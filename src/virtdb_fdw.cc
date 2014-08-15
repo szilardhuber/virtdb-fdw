@@ -6,6 +6,7 @@
 #include "receiver_thread.hh"
 #include "data_handler.hh"
 #include "virtdb_fdw.h" // pulls in some postgres headers
+#include "postgres_util.hh"
 
 // ZeroMQ
 #include "cppzmq/zmq.hpp"
@@ -141,30 +142,19 @@ static ForeignScan
 static void
 send_message(const ::google::protobuf::Message& message)
 {
-    zmq::socket_t socket (*zmq_context, ZMQ_PUSH);
-    socket.connect ("tcp://localhost:55555");
-    std::string str;
-    message.SerializeToString(&str);
-    int sz = str.length();
-    zmq::message_t query_message(sz);
-    memcpy(query_message.data (), str.c_str(), sz);
-    socket.send (query_message);
-}
-
-Var* get_variable(TargetEntry* target_entry)
-{
-    if (IsA(target_entry->expr, Var))
-    {
-        return reinterpret_cast<Var*>(target_entry->expr);
+    try {
+        zmq::socket_t socket (*zmq_context, ZMQ_PUSH);
+        socket.connect ("tcp://localhost:55555");
+        std::string str;
+        message.SerializeToString(&str);
+        int sz = str.length();
+        zmq::message_t query_message(sz);
+        memcpy(query_message.data (), str.c_str(), sz);
+        socket.send (query_message);
     }
-    else if (IsA(target_entry->expr, CoerceViaIO))
+    catch (const zmq::error_t& err)
     {
-        CoerceViaIO* coerce = reinterpret_cast<CoerceViaIO*>(target_entry->expr);
-        return reinterpret_cast<Var*>(coerce->arg);
-    }
-    else
-    {
-        return NULL;
+        elog(ERROR, "Error num: %d", err.num());
     }
 }
 
@@ -202,16 +192,12 @@ cbBeginForeignScan( ForeignScanState *node,
             {
                 continue;
             }
-            TargetEntry* target_entry = reinterpret_cast<TargetEntry*> (lfirst(cell));
-            Var* variable = get_variable(target_entry);
+            Expr* expr = reinterpret_cast<Expr*> (lfirst(cell));
+            const Var* variable = get_variable(expr);
             if (variable != nullptr)
             {
                 // elog(LOG, "Column: %s (%d)", meta->tupdesc->attrs[variable->varattno-1]->attname.data, variable->varattno-1);
                 query_data.add_column( variable->varattno-1, meta->tupdesc->attrs[variable->varattno-1]->attname.data );
-            }
-            else
-            {
-                elog(ERROR, "target_entry->expr is not a Var but: %d", target_entry->expr->type);
             }
             cell = cell->next;
         }
@@ -267,26 +253,9 @@ cbIterateForeignScan(ForeignScanState *node)
         try
         {
             handler->read_next();
-            int n = node->ss.ps.plan->targetlist->length;
-            ListCell* cell = node->ss.ps.plan->targetlist->head;
-            for (int i = 0; i < n; i++)
-            {
-                int column_id = 0;
-                if (!IsA(lfirst(cell), TargetEntry))
-                {
-                    continue;
-                }
-                TargetEntry* target_entry = reinterpret_cast<TargetEntry*> (lfirst(cell));
-                Var* variable = get_variable(target_entry);
-                if (variable)
-                {
-                    column_id = variable->varattno-1;
-                }
-                else
-                {
-                    elog(ERROR, "target_entry->expr is not a Var but: %d", target_entry->expr->type);
-                }
 
+            for (int column_id : handler->column_ids())
+            {
                 if (handler->is_null(column_id))
                 {
                     slot->tts_isnull[column_id] = true;
@@ -317,7 +286,6 @@ cbIterateForeignScan(ForeignScanState *node)
                         }
                     }
                 }
-                cell = cell->next;
             }
             ExecStoreVirtualTuple(slot);
         }
@@ -355,9 +323,11 @@ void PG_init_virtdb_fdw_cpp(void)
 {
     try
     {
-        zmq_context = new zmq::context_t (1);
+        zmq_context = new zmq::context_t ();
+
         worker_thread = new receiver_thread();
-        new std::thread(&receiver_thread::run, worker_thread);
+        auto thread = new std::thread(&receiver_thread::run, worker_thread);
+        thread->detach();
     }
     catch(const std::exception & e)
     {

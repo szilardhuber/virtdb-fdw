@@ -1,6 +1,7 @@
 #pragma once
 
 #include "filter.hh"
+#include "postgres_util.hh"
 
 namespace virtdb {
 
@@ -100,7 +101,7 @@ public:
                 if( filter_val && filter_id != 9999999 )
                 {
                     std::shared_ptr<expression> ret (new expression);
-                    ret->set_variable(filter_colname);
+                    ret->set_variable(filter_id, filter_colname);
                     ret->set_operand(filter_op);
                     ret->set_value(filter_val);
                     return ret;
@@ -109,32 +110,6 @@ public:
 
             return NULL;
         }
-    }
-
-protected:
-    virtual const Var* get_var(const Expr* clause) const
-    {
-        Node * lop = get_leftop(clause);
-        if( !(lop && (IsA(lop,RelabelType) || IsA(lop,Var))))
-        {
-            ereport(LOG, (errmsg("lop && (IsA(lop,RelabelType))")));
-        }
-        else
-        {
-            if( IsA(lop,Var) )
-            {
-                return reinterpret_cast<Var*>(lop);
-            }
-            else if( IsA(lop,RelabelType) )
-            {
-                RelabelType * rl = reinterpret_cast<RelabelType*>(lop);
-                if( rl && IsA(rl->arg,Var) )
-                {
-                    return reinterpret_cast<Var*>(rl->arg);
-                }
-            }
-        }
-        return NULL;
     }
 };
 

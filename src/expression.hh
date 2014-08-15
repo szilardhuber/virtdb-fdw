@@ -9,39 +9,42 @@
 namespace virtdb {
     class expression {
         private:
-            std::unique_ptr<virtdb::interface::pb::Expression> expr = nullptr;
-            virtdb::interface::pb::Expression* weak;
-            mutable std::unique_ptr<expression> _left = nullptr;
-            mutable std::unique_ptr<expression> _right = nullptr;
-            expression(virtdb::interface::pb::Expression* source) : weak(source) {}
-            virtdb::interface::pb::Expression& self() {
-                return (expr != nullptr) ? *expr : *weak;
+            virtdb::interface::pb::SimpleExpression simple;
+            int column_id               = -1;
+            expression* left_ptr        = nullptr;
+            expression* right_ptr       = nullptr;
+            std::string operand_value   = "";
+
+            inline bool is_composite() const
+            {
+                return left_ptr != nullptr && right_ptr != nullptr;
             }
-            const virtdb::interface::pb::Expression& self() const {
-                return (expr != nullptr) ? *expr : *weak;
-            }
+
+            void fill(virtdb::interface::pb::Expression& proto) const;
 
         public:
-            expression() : expr(new virtdb::interface::pb::Expression) {}
+            expression() {}
+            virtual ~expression() { delete left_ptr; delete right_ptr; }
 
-            // Expression
+            // Columns - for adding columns to query
+            std::map<int, std::string> columns() const;
+
+            // expression
             void set_operand(std::string value);
             const ::std::string& operand() const;
 
             // SimpleExpression
-            void set_variable(std::string value);
+            void set_variable(int id, std::string value);
             const ::std::string& variable() const;
             void set_value(std::string value);
             const ::std::string& value() const;
 
             // CompositeExpression
-            void set_left(const expression& left);
-            std::unique_ptr<expression>& left () const;
-            void set_right(const expression& right);
-            std::unique_ptr<expression>& right () const;
+            bool set_composite(expression* _left, expression* _right);
+            const expression* left () const { return left_ptr; }
+            const expression* right () const { return right_ptr; }
 
             // Accessing encapsulated object
-            virtdb::interface::pb::Expression& get_message();
-            const virtdb::interface::pb::Expression& get_message() const;
+            virtdb::interface::pb::Expression get_message() const;
     };
 }
