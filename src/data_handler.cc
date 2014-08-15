@@ -3,13 +3,14 @@
 namespace virtdb {
 
 data_handler::data_handler(const query& query_data) :
-    columns_count(query_data.columns_size()),
+    n_columns(query_data.columns_size()),
     queryid (query_data.id())
 {
-    for (int i = 0; i < columns_count; i++)
+    for (int i = 0; i < n_columns; i++)
     {
         std::string colname = query_data.column(i);
         column_names[colname] = query_data.column_id(i);
+        vec_column_ids.push_back(query_data.column_id(i));
     }
 }
 
@@ -34,23 +35,32 @@ void data_handler::push(int column_id, virtdb::interface::pb::Column new_data)
 
 bool data_handler::received_data() const
 {
-    if (data.size() != columns_count)
+    if (has_received_data)
+    {
+        return true;
+    }
+    if (data.size() != n_columns)
     {
         return false;
     }
     int ended = 0;
-    for (auto it = data.begin(); it != data.end(); it++)
+    for (auto item : data)
     {
-        for (auto inner_it = it->second.begin(); inner_it != it->second.end(); inner_it++)
+        for (auto column_proto : item.second)
         {
-            if (inner_it->endofdata())
+            if (column_proto.endofdata())
             {
                 ended += 1;
                 break;
             }
         }
     }
-    return ended == columns_count;
+    if (ended == n_columns)
+    {
+        has_received_data = true;
+        return true;
+    }
+    return false;
 }
 
 

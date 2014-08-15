@@ -37,19 +37,12 @@ public:
                 filter_op = "IS NOT";
             }
             std::shared_ptr<expression> ret (new expression);
-            ret->set_variable(filter_colname);
+            ret->set_variable(filter_id, filter_colname);
             ret->set_operand(filter_op);
             ret->set_value(filter_val);
             return ret;
         }
     }
-
-protected:
-  virtual const Var* get_var(const Expr* clause) const override
-  {
-    const NullTest * null_test = reinterpret_cast<const NullTest*>(clause);
-    return reinterpret_cast<Var*>(null_test->arg);
-  }
 
 };
 
