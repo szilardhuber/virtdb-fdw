@@ -9,7 +9,7 @@ LDFLAGS += $(GTEST_LDFLAGS)
 TESTS := *_test.hh
 
 gtest_test: gtest_test.o $(COMMON_OBJECTS)
-	g++ -o $@ $< $(COMMON_OBJS) $(LDFLAGS)
+	g++ -o $@ $< $(COMMON_OBJS) $(PROTO_OBJECTS) $(LDFLAGS)
 
 %.o: %.cc $(TESTS)
 	g++ -c -o $@ $< $(CXXFLAGS)
