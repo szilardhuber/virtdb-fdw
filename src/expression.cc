@@ -4,72 +4,90 @@ using namespace virtdb::interface;
 
 namespace virtdb {
 
-void expression::set_variable(std::string value)
+std::map<int, std::string> expression::columns() const
 {
-    self().mutable_simple()->set_variable(value);
-}
-
-const ::std::string& expression::variable() const {
-    return self().simple().variable();
+    std::map<int, std::string> ret;
+    if (!is_composite())
+    {
+        ret[column_id] = variable();
+    }
+    else
+    {
+        std::map<int, std::string> left_columns = left_ptr->columns();
+        for (auto it = left_columns.begin(); it != left_columns.end(); it++)
+        {
+            ret[it->first] = it->second;
+        }
+        std::map<int, std::string> right_columns = right_ptr->columns();
+        for (auto it = right_columns.begin(); it != right_columns.end(); it++)
+        {
+            ret[it->first] = it->second;
+        }
+    }
+    return ret;
 }
 
 void expression::set_operand(std::string value) {
-    self().set_operand(value);
+    operand_value = value;
 }
 
 const ::std::string& expression::operand() const {
-    return self().operand();
+    return operand_value;
+}
+
+void expression::set_variable(int id, std::string value)
+{
+    column_id = id;
+    simple.set_variable(value);
+}
+
+const ::std::string& expression::variable() const {
+    return simple.variable();
 }
 
 void expression::set_value(std::string value) {
-    self().mutable_simple()->set_value(value);
+    simple.set_value(value);
 }
 
 const ::std::string& expression::value() const {
-    return self().simple().value();
+    return simple.value();
 }
 
-// Hard copies the expression from the parameter
-// as to my understanding, there is no better way to do this for
-// Google Protocol buffer nested classes.
-void expression::set_left(const expression& left) {
-    *self().mutable_composite()->mutable_left() = left.get_message();
-}
-
-std::unique_ptr<expression>& expression::left () const {
-    if (!_left && self().composite().has_left())
-    {
-        pb::Expression& self = (expr != nullptr) ? *expr : *weak; // HACK
-        _left.reset( new expression(self.mutable_composite()->mutable_left()) );
-    }
-    return _left;
-}
-
-// Hard copies the expression from the parameter
-// as to my understanding, there is no better way to do this for
-// Google Protocol buffer nested classes.
-void expression::set_right(const expression& right) {
-    *self().mutable_composite()->mutable_right() = right.get_message();
-}
-
-std::unique_ptr<expression>& expression::right () const {
-    if (!_right && self().composite().has_right())
-    {
-        pb::Expression& self = (expr != nullptr) ? *expr : *weak; // HACK
-        _right.reset( new expression(self.mutable_composite()->mutable_right()) );
-    }
-    return _right;
-}
-
-
-pb::Expression& expression::get_message()
+bool expression::set_composite(expression* _left, expression* _right)
 {
-    return *expr;
+    if (_left == nullptr || _right == nullptr || _left == _right)
+    {
+        return false;
+    }
+    delete left_ptr;
+    delete right_ptr;
+    left_ptr = _left;
+    right_ptr = _right;
+    return true;
 }
 
-const pb::Expression& expression::get_message() const
+void expression::fill(pb::Expression& proto) const
 {
-    return *expr;
+    proto.set_operand(operand());
+    if (!is_composite())
+    {
+        proto.mutable_simple()->set_variable(variable());
+        proto.mutable_simple()->set_value(value());
+    }
+    else
+    {
+        pb::Expression* left_proto = proto.mutable_composite()->mutable_left();
+        left()->fill(*left_proto);
+        pb::Expression* right_proto = proto.mutable_composite()->mutable_right();
+        right()->fill(*right_proto);
+    }
+}
+
+pb::Expression expression::get_message() const
+{
+    pb::Expression ret;
+    this->fill(ret);
+    return ret;
 }
 
 }
