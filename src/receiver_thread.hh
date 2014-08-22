@@ -5,6 +5,12 @@
 #include <map>
 
 struct ForeignScanState;
+
+namespace zmq
+{
+    class socket_t;
+}
+
 namespace virtdb
 {
     class query;
@@ -24,7 +30,12 @@ namespace virtdb {
             bool done = false;
             std::map<std::string, cv_data> cv;
             std::map<const ForeignScanState* const, data_handler* > active_queries;
+            zmq::socket_t* data_socket;
+
         public:
+            receiver_thread();
+            virtual ~receiver_thread();
+
             void add_query(const ForeignScanState* const node, const virtdb::query& query);
             void remove_query(const ForeignScanState* const node);
             void stop();
