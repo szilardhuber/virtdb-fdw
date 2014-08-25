@@ -4,9 +4,11 @@ EXTVERSION := $(shell grep default_version $(EXTENSION).control | sed -e "s/defa
 all: $(EXTENSION)--$(EXTVERSION).sql gtest-pkg-build-all test-build-all 
 
 BUILD_ROOT := $(shell pwd)
-include ./common.mk
+include ./fdw.mk
 
 MODULE_big = virtdb_fdw
+COMMON_LIB := $(BUILD_ROOT)/common/libcommon.a
+PROTO_LIB := $(BUILD_ROOT)/common/proto/libproto.a
 OBJS := src/virtdb_fdw_main.o src/virtdb_fdw.o $(COMMON_OBJS) $(PROTO_OBJECTS)
 SHLIB_LINK := -lstdc++
 DATA := $(EXTENSION)--$(EXTVERSION).sql
