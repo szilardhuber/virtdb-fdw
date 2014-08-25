@@ -10,7 +10,15 @@ MODULE_big = virtdb_fdw
 OBJS := src/virtdb_fdw_main.o src/virtdb_fdw.o $(FDW_OBJS) 
 SHLIB_LINK := -lstdc++
 DATA := $(EXTENSION)--$(EXTVERSION).sql
-EXTRA_CLEAN := $(EXTENSION)--$(EXTVERSION).sql $(FDW_OBJS) $(OBJS) $(DEPS) $(shell find ./ -name "*.pb.*")
+EXTRA_CLEAN := $(EXTENSION)--$(EXTVERSION).sql \
+               $(FDW_OBJS) \
+               $(wildcard $(BUILD_ROOT)/src/*.d) \
+               $(wildcard $(BUILD_ROOT)/src/*.o) \
+               $(OBJS) \
+               $(DEPS) \
+               $(wildcard $(BUILD_ROOT)/common/lib*.a) \
+               $(wildcard $(BUILD_ROOT)/common/proto/lib*.a) \
+               $(wildcard $(BUILD_ROOT)/common/proto/*.pb.*) 
 PG_CONFIG ?= $(shell which pg_config)
 ifeq ($(PG_CONFIG), )
 $(info $$PG_CONFIG is [${PG_CONFIG}])
@@ -19,11 +27,14 @@ endif
 
 COMMON_LIB := $(BUILD_ROOT)/common/libcommon.a
 PROTO_LIB := $(BUILD_ROOT)/common/proto/libproto.a
+
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 PG_CPPFLAGS := $(ZMQ_CFLAGS) $(PROTOBUF_CFLAGS)
 PG_LIBS := -lstdc++ $(ZMQ_LDFLAGS) $(PROTOBUF_LDFLAGS) $(COMMON_LIB) $(PROTO_LIB)
 
 include $(PGXS)
+
+$(COMMON_LIB) $(PROTO_LIB): $(PROTOBUF_HEADERS)
 
 LDFLAGS += $(PG_LIBS)
 
@@ -35,22 +46,25 @@ test-build-clean:
 	@echo "cleaning tests"
 	make -C test/ clean
 
+common-build-all:
+	cd $(BUILD_ROOT)/common; make -f common.mk all
+
+$(PROTOBUF_HEADERS): $(PROTOBUF_PROTOS) 
+	cd $(BUILD_ROOT)/common; make -f common.mk all
+
 -include $(FDW_OBJS:.o=.d)
 
 src/virtdb_fdw.o: $(FDW_OBJS)
 
-$(FDW_OBJS): $(PROTO_OBJECTS)
+$(FDW_OBJS): $(PROTOBUF_HEADERS)
 
 $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 	echo $< $@
 	cp $< $@
 
-%.o: %.cc
+%.o: %.cc $(PROTOBUF_HEADERS)
 	g++ -c -o $@ $< $(CXXFLAGS)
 	g++ -MM $*.cc -MT $@ -MF $*.d $(CXXFLAGS)
-
-common-build-all:
-	cd $(BUILD_ROOT)/common; make -f common.mk all
 
 virtdb-clean: test-build-clean clean
 	cd $(BUILD_ROOT)/common; make -f common.mk clean
