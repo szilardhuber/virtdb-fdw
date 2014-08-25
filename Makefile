@@ -1,50 +1,42 @@
 EXTENSION := src/virtdb_fdw
 EXTVERSION := $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 
-all: $(EXTENSION)--$(EXTVERSION).sql gtest-pkg-build-all test-build-all
+all: $(EXTENSION)--$(EXTVERSION).sql common-build-all test-build-all 
 
 BUILD_ROOT := $(shell pwd)
-include ./common.mk
+include ./fdw.mk
 
 MODULE_big = virtdb_fdw
-OBJS := src/virtdb_fdw_main.o src/virtdb_fdw.o $(COMMON_OBJS) $(PROTO_OBJECTS)
+OBJS := src/virtdb_fdw_main.o src/virtdb_fdw.o $(FDW_OBJS) 
 SHLIB_LINK := -lstdc++
 DATA := $(EXTENSION)--$(EXTVERSION).sql
-EXTRA_CLEAN := $(EXTENSION)--$(EXTVERSION).sql $(PROTO_OBJECTS) $(COMMON_OBJS) $(OBJS) $(DEPS) $(shell find ./ -name "*.pb.*")
+EXTRA_CLEAN := $(EXTENSION)--$(EXTVERSION).sql \
+               $(FDW_OBJS) \
+               $(wildcard $(BUILD_ROOT)/src/*.d) \
+               $(wildcard $(BUILD_ROOT)/src/*.o) \
+               $(OBJS) \
+               $(DEPS) \
+               $(wildcard $(BUILD_ROOT)/common/lib*.a) \
+               $(wildcard $(BUILD_ROOT)/common/proto/lib*.a) \
+               $(wildcard $(BUILD_ROOT)/common/proto/*.pb.*) 
 PG_CONFIG ?= $(shell which pg_config)
 ifeq ($(PG_CONFIG), )
 $(info $$PG_CONFIG is [${PG_CONFIG}])
 PG_CONFIG = $(shell which /usr/local/pgsql/bin/pg_config)
 endif
+
+COMMON_LIB := $(BUILD_ROOT)/common/libcommon.a
+PROTO_LIB := $(BUILD_ROOT)/common/proto/libproto.a
+
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 PG_CPPFLAGS := $(ZMQ_CFLAGS) $(PROTOBUF_CFLAGS)
-PG_LIBS := -lstdc++ $(ZMQ_LDFLAGS) $(PROTOBUF_LDFLAGS)
+PG_LIBS := -lstdc++ $(ZMQ_LDFLAGS) $(PROTOBUF_LDFLAGS) $(COMMON_LIB) $(PROTO_LIB)
 
 include $(PGXS)
 
+$(COMMON_LIB) $(PROTO_LIB): $(PROTOBUF_HEADERS)
+
 LDFLAGS += $(PG_LIBS)
-
-gtest-pkg-build-all: gtest-pkg-configure gtest-pkg-lib
-
-gtest-pkg-configure: $(GTEST_CONFIG_STATUS)
-
-$(GTEST_CONFIG_STATUS):
-	@echo "doing configure in gtest in " $(GTEST_PATH)
-	cd $(GTEST_PATH) ; ./configure
-	@echo "configure done in gtest"
-
-# NOTE: assumption: the libdir will be created during build
-gtest-pkg-lib: $(GTEST_LIBDIR)
-
-$(GTEST_LIBDIR):
-	@echo "building the gtest package"
-	@make -C $(GTEST_PATH)
-	@echo "building finished in gtest package"
-
-gtest-pkg-clean:
-	@echo "cleaning the gtest package"
-	@make -C $(GTEST_PATH) clean
-	@echo "cleaning finished in gtest package"
 
 test-build-all:
 	@echo "building tests"
@@ -54,19 +46,26 @@ test-build-clean:
 	@echo "cleaning tests"
 	make -C test/ clean
 
--include $(COMMON_OBJS:.o=.d)
+common-build-all:
+	cd $(BUILD_ROOT)/common; make -f common.mk all
 
-src/virtdb_fdw.o: $(COMMON_OBJS)
+$(PROTOBUF_HEADERS): $(PROTOBUF_PROTOS) 
+	cd $(BUILD_ROOT)/common; make -f common.mk all
 
-$(COMMON_OBJS): $(PROTO_OBJECTS)
+-include $(FDW_OBJS:.o=.d)
+
+src/virtdb_fdw.o: $(FDW_OBJS)
+
+$(FDW_OBJS): $(PROTOBUF_HEADERS)
 
 $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 	echo $< $@
 	cp $< $@
 
-%.o: %.cc
+%.o: %.cc $(PROTOBUF_HEADERS)
 	g++ -c -o $@ $< $(CXXFLAGS)
 	g++ -MM $*.cc -MT $@ -MF $*.d $(CXXFLAGS)
 
+virtdb-clean: test-build-clean clean
+	cd $(BUILD_ROOT)/common; make -f common.mk clean
 
-virtdb-clean: test-build-clean gtest-pkg-clean clean

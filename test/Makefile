@@ -1,15 +1,15 @@
 all: gtest_test
 
 BUILD_ROOT := $(shell pwd)/../
-include ../common.mk
+include ../fdw.mk
 
-CXXFLAGS += $(GTEST_CFLAGS)
-LDFLAGS += $(GTEST_LDFLAGS)
+CXXFLAGS += $(GTEST_CFLAGS) $(COMMON_CFLAGS)
+LDFLAGS += $(GTEST_LDFLAGS) $(COMMON_LDFLAGS)
 
 TESTS := *_test.hh
 
-gtest_test: gtest_test.o $(COMMON_OBJECTS)
-	g++ -o $@ $< $(COMMON_OBJS) $(PROTO_OBJECTS) $(LDFLAGS)
+gtest_test: gtest_test.o $(FDW_OBJECTS)
+	g++ -o $@ $< $(FDW_OBJS) $(PROTO_OBJECTS) $(LDFLAGS)
 
 %.o: %.cc $(TESTS)
 	g++ -c -o $@ $< $(CXXFLAGS)
