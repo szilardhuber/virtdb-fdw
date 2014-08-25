@@ -3,6 +3,8 @@
 // #include <postgres_ext.h>     // Oid
 // #include <nodes/primnodes.h>  // Var
 
+#include "postgres_util.hh"
+
 namespace virtdb {
 
 class filter
@@ -48,12 +50,10 @@ protected:
     return head;
   }
 
-  virtual const Var* get_var(const Expr* clause) const { return nullptr; }
-
   size_t get_filter_id(const Expr * clause) const
   {
     size_t filter_id = 9999999;
-    const Var * vp   = get_var(clause);
+    const Var * vp   = get_variable(clause);
 
     if (vp && vp->varattno)
     {

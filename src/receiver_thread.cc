@@ -15,14 +15,27 @@ zmq::context_t* zmq_context = NULL;
 
 using namespace virtdb;
 
+receiver_thread::receiver_thread()
+{
+    data_socket = new zmq::socket_t (*zmq_context, ZMQ_SUB);
+    data_socket->connect("tcp://localhost:5556");
+}
+
+receiver_thread::~receiver_thread()
+{
+    delete data_socket;
+}
+
 void receiver_thread::add_query(const ForeignScanState* const node, const virtdb::query& query_data)
 {
     active_queries[node] = new data_handler(query_data);
+    data_socket->setsockopt( ZMQ_SUBSCRIBE, query_data.id().c_str(), 0);
 }
 
 void receiver_thread::remove_query(const ForeignScanState* const node)
 {
     data_handler* handler = active_queries[node];
+    data_socket->setsockopt( ZMQ_UNSUBSCRIBE, handler->query_id().c_str(), 0);
     active_queries.erase(node);
     delete handler;
 }
@@ -68,16 +81,18 @@ void receiver_thread::run()
 {
     try
     {
-        zmq::socket_t subscriber (*zmq_context, ZMQ_SUB);
-        subscriber.connect("tcp://localhost:5556");
-        subscriber.setsockopt( ZMQ_SUBSCRIBE, NULL, 0);
+        zmq::message_t query_id;
         zmq::message_t update;
 
         while (!done)
         {
             try
             {
-                subscriber.recv(&update);
+                // QueryID
+                data_socket->recv(&query_id);
+
+                // Column data
+                data_socket->recv(&update);
                 virtdb::interface::pb::Column column;
                 column.ParseFromArray(update.data(), update.size());
                 data_handler* handler = get_data_handler(column.queryid());

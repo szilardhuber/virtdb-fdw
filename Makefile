@@ -1,5 +1,5 @@
-EXTENSION = src/virtdb_fdw
-EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
+EXTENSION := src/virtdb_fdw
+EXTVERSION := $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 
 all: $(EXTENSION)--$(EXTVERSION).sql gtest-pkg-build-all test-build-all
 
@@ -7,10 +7,10 @@ BUILD_ROOT := $(shell pwd)
 include ./common.mk
 
 MODULE_big = virtdb_fdw
-OBJS = src/virtdb_fdw_main.o src/virtdb_fdw.o $(COMMON_OBJS)
-SHLIB_LINK = -lstdc++
-DATA = $(EXTENSION)--$(EXTVERSION).sql
-EXTRA_CLEAN = $(EXTENSION)--$(EXTVERSION).sql
+OBJS := src/virtdb_fdw_main.o src/virtdb_fdw.o $(COMMON_OBJS) $(PROTO_OBJECTS)
+SHLIB_LINK := -lstdc++
+DATA := $(EXTENSION)--$(EXTVERSION).sql
+EXTRA_CLEAN := $(EXTENSION)--$(EXTVERSION).sql $(PROTO_OBJECTS) $(COMMON_OBJS) $(OBJS) $(DEPS) $(shell find ./ -name "*.pb.*")
 PG_CONFIG ?= $(shell which pg_config)
 ifeq ($(PG_CONFIG), )
 $(info $$PG_CONFIG is [${PG_CONFIG}])
@@ -54,14 +54,19 @@ test-build-clean:
 	@echo "cleaning tests"
 	make -C test/ clean
 
+-include $(COMMON_OBJS:.o=.d)
+
 src/virtdb_fdw.o: $(COMMON_OBJS)
+
+$(COMMON_OBJS): $(PROTO_OBJECTS)
 
 $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 	echo $< $@
 	cp $< $@
 
-src/%.o: src/%.cc
+%.o: %.cc
 	g++ -c -o $@ $< $(CXXFLAGS)
+	g++ -MM $*.cc -MT $@ -MF $*.d $(CXXFLAGS)
+
 
 virtdb-clean: test-build-clean gtest-pkg-clean clean
-	rm -f $(PROTO_OBJECTS) $(OBJS) $(shell find ./ -name "*.pb.*") $(EXTENSION)--$(EXTVERSION).sql

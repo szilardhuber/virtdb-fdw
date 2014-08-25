@@ -6,6 +6,7 @@
 #include "receiver_thread.hh"
 #include "data_handler.hh"
 #include "virtdb_fdw.h" // pulls in some postgres headers
+#include "postgres_util.hh"
 
 // ZeroMQ
 #include "cppzmq/zmq.hpp"
@@ -141,21 +142,28 @@ static ForeignScan
 static void
 send_message(const ::google::protobuf::Message& message)
 {
-    zmq::socket_t socket (*zmq_context, ZMQ_REQ);
-    socket.connect ("tcp://localhost:55555");
-    std::string str;
-    message.SerializeToString(&str);
-    int sz = str.length();
-    zmq::message_t query_message(sz);
-    memcpy(query_message.data (), str.c_str(), sz);
-    socket.send (query_message);
+    try {
+        zmq::socket_t socket (*zmq_context, ZMQ_PUSH);
+        socket.connect ("tcp://localhost:55555");
+        std::string str;
+        message.SerializeToString(&str);
+        int sz = str.length();
+        zmq::message_t query_message(sz);
+        memcpy(query_message.data (), str.c_str(), sz);
+        socket.send (query_message);
+    }
+    catch (const zmq::error_t& err)
+    {
+        elog(ERROR, "Error num: %d", err.num());
+    }
 }
-
 
 static void
 cbBeginForeignScan( ForeignScanState *node,
                     int eflags )
 {
+    // elog_node_display(INFO, "node: ", node->ss.ps.plan, true);
+
     ListCell   *l;
     struct AttInMetadata * meta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
     filter* filterChain = new op_expr_filter();
@@ -184,15 +192,12 @@ cbBeginForeignScan( ForeignScanState *node,
             {
                 continue;
             }
-            TargetEntry* target_entry = reinterpret_cast<TargetEntry*> (lfirst(cell));
-            if (IsA(target_entry->expr, Var))
+            Expr* expr = reinterpret_cast<Expr*> (lfirst(cell));
+            const Var* variable = get_variable(expr);
+            if (variable != nullptr)
             {
-                Var* variable = reinterpret_cast<Var*>(target_entry->expr);
-                query_data.add_column( meta->tupdesc->attrs[variable->varattno-1]->attname.data );
-            }
-            else
-            {
-                elog(ERROR, "target_entry->expr is not a Var but: %d", target_entry->expr->type);
+                // elog(LOG, "Column: %s (%d)", meta->tupdesc->attrs[variable->varattno-1]->attname.data, variable->varattno-1);
+                query_data.add_column( variable->varattno-1, meta->tupdesc->attrs[variable->varattno-1]->attname.data );
             }
             cell = cell->next;
         }
@@ -248,34 +253,35 @@ cbIterateForeignScan(ForeignScanState *node)
         try
         {
             handler->read_next();
-            for (int i = 0; i < node->ss.ss_currentRelation->rd_att->natts; i++)
+
+            for (int column_id : handler->column_ids())
             {
-                if (handler->is_null(i))
+                if (handler->is_null(column_id))
                 {
-                    slot->tts_isnull[i] = true;
+                    slot->tts_isnull[column_id] = true;
                 }
                 else
                 {
-                    slot->tts_isnull[i] = false;
-                    switch( meta->tupdesc->attrs[i]->atttypid )
+                    slot->tts_isnull[column_id] = false;
+                    switch( meta->tupdesc->attrs[column_id]->atttypid )
                     {
                         case VARCHAROID: {
-                            const std::string* const data = handler->get_string(i);
+                            const std::string* const data = handler->get_string(column_id);
                             if (data)
                             {
                                 bytea *vcdata = reinterpret_cast<bytea *>(palloc(data->size() + VARHDRSZ));
                                 ::memcpy( VARDATA(vcdata), data->c_str(), data->size() );
                                 SET_VARSIZE(vcdata, data->size() + VARHDRSZ);
-                                slot->tts_values[i] = PointerGetDatum(vcdata);
+                                slot->tts_values[column_id] = PointerGetDatum(vcdata);
                             }
                             else {
-                                slot->tts_isnull[i] = true;
+                                slot->tts_isnull[column_id] = true;
                             }
                             break;
                         }
                         default: {
-                            elog(ERROR, "Unhandled attribute type: %d", meta->tupdesc->attrs[i]->atttypid);
-                            slot->tts_isnull[i] = true;
+                            elog(ERROR, "Unhandled attribute type: %d", meta->tupdesc->attrs[column_id]->atttypid);
+                            slot->tts_isnull[column_id] = true;
                             break;
                         }
                     }
@@ -317,9 +323,11 @@ void PG_init_virtdb_fdw_cpp(void)
 {
     try
     {
-        zmq_context = new zmq::context_t (1);
+        zmq_context = new zmq::context_t ();
+
         worker_thread = new receiver_thread();
-        new std::thread(&receiver_thread::run, worker_thread);
+        auto thread = new std::thread(&receiver_thread::run, worker_thread);
+        thread->detach();
     }
     catch(const std::exception & e)
     {

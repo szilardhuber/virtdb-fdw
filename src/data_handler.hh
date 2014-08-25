@@ -8,21 +8,31 @@
 namespace virtdb {
     class data_handler {
         private:
-            const int columns_count;
+            const int n_columns;
             const std::string queryid;
             // Not a vector as we may not get the columns in order
-            std::map<int, virtdb::interface::pb::Column> data;
+            std::map<int, std::vector<virtdb::interface::pb::Column> > data;
             std::map<std::string, int>  column_names;
+            std::vector<int> vec_column_ids;
+            mutable bool has_received_data = false;
             int cursor = -1;
+            int inner_cursor = -1;
+            int current_chunk = 0;
 
-            int data_length() const;
+            // int data_length() const;
 
+            virtdb::interface::pb::Column& chunk(int column_index, int chunk_index)
+            {
+                return data.find(column_index)->second[chunk_index];
+            }
+
+            void push(int column_id, virtdb::interface::pb::Column new_data);
         public:
+            int data_length() const;
             data_handler(const query& query_data);
 
             const std::string& query_id() const;
             void push(std::string name, virtdb::interface::pb::Column new_data);
-            void push(int column_number, virtdb::interface::pb::Column new_data);
 
             // Returns true if we have received data for all needed columns
             bool received_data() const;
@@ -35,6 +45,11 @@ namespace virtdb {
             // Returns false if end of daa.
             bool read_next();
 
+            inline int columns_count() const { return n_columns; }
+            const std::vector<int>& column_ids() const
+            {
+                return vec_column_ids;
+            }
             bool is_null(int column_number) const;
 
             // Returns the value of the given column in the actual row or NULL
