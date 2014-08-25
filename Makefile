@@ -1,7 +1,7 @@
 EXTENSION := src/virtdb_fdw
 EXTVERSION := $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 
-all: $(EXTENSION)--$(EXTVERSION).sql gtest-pkg-build-all test-build-all
+all: $(EXTENSION)--$(EXTVERSION).sql gtest-pkg-build-all test-build-all 
 
 BUILD_ROOT := $(shell pwd)
 include ./common.mk
