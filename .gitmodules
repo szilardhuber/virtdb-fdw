@@ -10,3 +10,7 @@
 	path = src/gtest
 	url = https://github.com/starschema/virtdb-gtest.git
 	branch = gtest-1.7.0
+[submodule "src/common"]
+	path = src/common
+	url = https://github.com/starschema/virtdb-common.git
+	branch = master
