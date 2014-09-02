@@ -65,8 +65,8 @@ $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 	cp $< $@
 
 %.o: %.cc
-	g++ -c -o $@ $< $(CXXFLAGS)
-	g++ -MM $*.cc -MT $@ -MF $*.d $(CXXFLAGS)
+	$(CXX) -c -o $@ $< $(CXXFLAGS)
+	$(CXX) -MM $*.cc -MT $@ -MF $*.d $(CXXFLAGS)
 
 
 virtdb-clean: test-build-clean gtest-pkg-clean clean
