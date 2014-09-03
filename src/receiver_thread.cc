@@ -2,7 +2,7 @@
 #include <chrono>
 
 // Google Protocol Buffers
-#include "proto/data.pb.h"
+#include "data.pb.h"
 
 // ZeroMQ
 #include "cppzmq/zmq.hpp"
@@ -18,7 +18,7 @@ using namespace virtdb;
 receiver_thread::receiver_thread()
 {
     data_socket = new zmq::socket_t (*zmq_context, ZMQ_SUB);
-    data_socket->connect("tcp://localhost:5556");
+    data_socket->connect("tcp://localhost:54915");
 }
 
 receiver_thread::~receiver_thread()

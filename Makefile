@@ -1,13 +1,13 @@
 EXTENSION := src/virtdb_fdw
 EXTVERSION := $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 
-all: $(EXTENSION)--$(EXTVERSION).sql common-build-all test-build-all 
+all: $(EXTENSION)--$(EXTVERSION).sql common-build-all test-build-all
 
 BUILD_ROOT := $(shell pwd)
 include ./fdw.mk
 
 MODULE_big = virtdb_fdw
-OBJS := src/virtdb_fdw_main.o src/virtdb_fdw.o $(FDW_OBJS) 
+OBJS := src/virtdb_fdw_main.o src/virtdb_fdw.o $(FDW_OBJS)
 SHLIB_LINK := -lstdc++
 DATA := $(EXTENSION)--$(EXTVERSION).sql
 EXTRA_CLEAN := $(EXTENSION)--$(EXTVERSION).sql \
@@ -18,7 +18,7 @@ EXTRA_CLEAN := $(EXTENSION)--$(EXTVERSION).sql \
                $(DEPS) \
                $(wildcard $(BUILD_ROOT)/common/lib*.a) \
                $(wildcard $(BUILD_ROOT)/common/proto/lib*.a) \
-               $(wildcard $(BUILD_ROOT)/common/proto/*.pb.*) 
+               $(wildcard $(BUILD_ROOT)/common/proto/*.pb.*)
 PG_CONFIG ?= $(shell which pg_config)
 ifeq ($(PG_CONFIG), )
 $(info $$PG_CONFIG is [${PG_CONFIG}])
@@ -33,6 +33,8 @@ PG_CPPFLAGS := $(ZMQ_CFLAGS) $(PROTOBUF_CFLAGS)
 PG_LIBS := -lstdc++ $(ZMQ_LDFLAGS) $(PROTOBUF_LDFLAGS) $(COMMON_LIB) $(PROTO_LIB)
 
 include $(PGXS)
+
+CXX ?= g++
 
 $(COMMON_LIB) $(PROTO_LIB): $(PROTOBUF_HEADERS)
 
@@ -49,7 +51,7 @@ test-build-clean:
 common-build-all:
 	cd $(BUILD_ROOT)/common; make -f common.mk all
 
-$(PROTOBUF_HEADERS): $(PROTOBUF_PROTOS) 
+$(PROTOBUF_HEADERS): $(PROTOBUF_PROTOS)
 	cd $(BUILD_ROOT)/common; make -f common.mk all
 
 -include $(FDW_OBJS:.o=.d)
@@ -63,9 +65,8 @@ $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 	cp $< $@
 
 %.o: %.cc $(PROTOBUF_HEADERS)
-	g++ -c -o $@ $< $(CXXFLAGS)
-	g++ -MM $*.cc -MT $@ -MF $*.d $(CXXFLAGS)
+	$(CXX) -c -o $@ $< $(CXXFLAGS)
+	$(CXX) -MM $*.cc -MT $@ -MF $*.d $(CXXFLAGS)
 
 virtdb-clean: test-build-clean clean
 	cd $(BUILD_ROOT)/common; make -f common.mk clean
-

@@ -1,7 +1,7 @@
 #pragma once
 
 // protocol buffer
-#include "proto/data.pb.h"
+#include "data.pb.h"
 
 // standard headers
 #include <memory>
@@ -12,7 +12,7 @@ namespace virtdb {
 
     class query {
         private:
-            std::map<int, int> columns; // column_number -> column_id 
+            std::map<int, int> columns; // column_number -> column_id
             std::unique_ptr<virtdb::interface::pb::Query> query_data =
                     std::unique_ptr<virtdb::interface::pb::Query>(new virtdb::interface::pb::Query);
 
