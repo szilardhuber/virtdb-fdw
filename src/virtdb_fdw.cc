@@ -1,9 +1,9 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 
-// #include <logger.hh>
-// #include <util.hh>
-// #include <connector.hh>
+#include <logger.hh>
+#include <util.hh>
+#include <connector.hh>
 
 
 #include "expression.hh"
@@ -46,6 +46,10 @@ extern "C" {
 #include "nulltestfilter.hh"
 #include "opexprfilter.hh"
 
+#include <logger.hh>
+#include <util.hh>
+#include <connector.hh>
+
 // standard headers
 #include <atomic>
 #include <exception>
@@ -57,12 +61,12 @@ extern "C" {
 #include <future>
 
 using namespace virtdb;
-// using namespace virtdb::connector;
+using namespace virtdb::connector;
 
 extern zmq::context_t* zmq_context;
 receiver_thread* worker_thread = NULL;
-// endpoint_client*  ep_clnt;
-// log_record_client* log_clnt;
+endpoint_client*  ep_clnt;
+log_record_client* log_clnt;
 
 namespace virtdb_fdw_priv {
 
@@ -374,8 +378,8 @@ void PG_init_virtdb_fdw_cpp(void)
         auto thread = new std::thread(&receiver_thread::run, worker_thread);
         thread->detach();
 
-        // ep_clnt = new endpoint_client("tcp://127.0.0.1:65001", "generic_fdw");
-        // log_clnt = new log_record_client(*ep_clnt);
+        ep_clnt = new endpoint_client("tcp://127.0.0.1:65001", "generic_fdw");
+        log_clnt = new log_record_client(*ep_clnt);
 
 
     }
@@ -390,8 +394,8 @@ void PG_fini_virtdb_fdw_cpp(void)
     delete zmq_context;
     worker_thread->stop();
     delete worker_thread;
-    // delete log_clnt;
-    // delete ep_clnt;
+    delete log_clnt;
+    delete ep_clnt;
 }
 
 Datum virtdb_fdw_status_cpp(PG_FUNCTION_ARGS)

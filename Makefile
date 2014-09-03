@@ -38,7 +38,13 @@ CXX ?= g++
 
 $(COMMON_LIB) $(PROTO_LIB): $(PROTOBUF_HEADERS)
 
-LDFLAGS += $(PG_LIBS)
+LDFLAGS += $(PG_LIBS) -g3
+
+OLDCFLAGS := $(CFLAGS:-O2=-O0)
+override CFLAGS := $(OLDCFLAGS) -g3
+
+$(info $$CFLAGS is [${CFLAGS}])
+$(info $$LDFLAGS is [${LDFLAGS}])
 
 test-build-all:
 	@echo "building tests"
