@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "query.hh"
+#include "util/value_type.hh"
 
 namespace virtdb {
     class data_handler {
@@ -53,6 +54,22 @@ namespace virtdb {
             bool is_null(int column_number) const;
 
             // Returns the value of the given column in the actual row or NULL
+            template<typename T>
+            const T* const get(int column_id)
+            {
+                try {
+                    if (is_null(column_id))
+                        return NULL;
+                    virtdb::interface::pb::ValueType* value = data.find(column_id)->second[current_chunk].mutable_data();
+                    return new T(virtdb::util::value_type<T>::get(*value, inner_cursor, T()));
+                }
+                catch(const ::google::protobuf::FatalException & e)
+                {
+                    std::string error_string = "Error [" + std::to_string(__LINE__) + "]! Inner_cursor: " + std::to_string(inner_cursor) + " " + e.what();
+                    throw std::invalid_argument(error_string);
+                }
+            }
+
             const std::string* const get_string(int column_number) const;
     };
 }

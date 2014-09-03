@@ -1,7 +1,7 @@
 #pragma once
 
 // protocol buffer
-#include "proto/data.pb.h"
+#include "data.pb.h"
 
 // standard headers
 #include <memory>

@@ -1,6 +1,11 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 
+#include <logger.hh>
+#include <util.hh>
+#include <connector.hh>
+
+
 #include "expression.hh"
 #include "query.hh"
 #include "receiver_thread.hh"
@@ -52,9 +57,12 @@ extern "C" {
 #include <future>
 
 using namespace virtdb;
+using namespace virtdb::connector;
 
 extern zmq::context_t* zmq_context;
 receiver_thread* worker_thread = NULL;
+endpoint_client*  ep_clnt;
+log_record_client* log_clnt;
 
 namespace virtdb_fdw_priv {
 
@@ -144,7 +152,7 @@ send_message(const ::google::protobuf::Message& message)
 {
     try {
         zmq::socket_t socket (*zmq_context, ZMQ_PUSH);
-        socket.connect ("tcp://localhost:55555");
+        socket.connect ("tcp://localhost:45186");
         std::string str;
         message.SerializeToString(&str);
         int sz = str.length();
@@ -266,7 +274,8 @@ cbIterateForeignScan(ForeignScanState *node)
                     switch( meta->tupdesc->attrs[column_id]->atttypid )
                     {
                         case VARCHAROID: {
-                            const std::string* const data = handler->get_string(column_id);
+                            const std::string* const data = handler->get<std::string>(column_id);
+                            elog(LOG, "VARCHAROID data: %s", data->c_str());
                             if (data)
                             {
                                 bytea *vcdata = reinterpret_cast<bytea *>(palloc(data->size() + VARHDRSZ));
@@ -277,6 +286,15 @@ cbIterateForeignScan(ForeignScanState *node)
                             else {
                                 slot->tts_isnull[column_id] = true;
                             }
+                            break;
+                        }
+                        case INT4OID: {
+                            const int32_t* const data = handler->get<int32_t>(column_id);
+                            if (data)
+                            {
+
+                            }
+                            elog(LOG, "INT4OID data: %d", *data);
                             break;
                         }
                         default: {
@@ -323,11 +341,16 @@ void PG_init_virtdb_fdw_cpp(void)
 {
     try
     {
-        zmq_context = new zmq::context_t ();
+        zmq_context = new zmq::context_t(1);
 
         worker_thread = new receiver_thread();
         auto thread = new std::thread(&receiver_thread::run, worker_thread);
         thread->detach();
+
+        ep_clnt = new endpoint_client("tcp://127.0.0.1:65001", "generic_fdw");
+        log_clnt = new log_record_client(*ep_clnt);
+
+
     }
     catch(const std::exception & e)
     {
@@ -340,6 +363,8 @@ void PG_fini_virtdb_fdw_cpp(void)
     delete zmq_context;
     worker_thread->stop();
     delete worker_thread;
+    delete log_clnt;
+    delete ep_clnt;
 }
 
 Datum virtdb_fdw_status_cpp(PG_FUNCTION_ARGS)
