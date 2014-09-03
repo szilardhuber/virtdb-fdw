@@ -1,11 +1,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 
-#include <logger.hh>
-#include <util.hh>
-#include <connector.hh>
-
-
 #include "expression.hh"
 #include "query.hh"
 #include "receiver_thread.hh"
@@ -45,6 +40,10 @@ extern "C" {
 #include "defaultfilter.hh"
 #include "nulltestfilter.hh"
 #include "opexprfilter.hh"
+
+#include <logger.hh>
+#include <util.hh>
+#include <connector.hh>
 
 // standard headers
 #include <atomic>
