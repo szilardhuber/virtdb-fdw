@@ -1,9 +1,9 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 
-#include <logger.hh>
-#include <util.hh>
-#include <connector.hh>
+// #include <logger.hh>
+// #include <util.hh>
+// #include <connector.hh>
 
 
 #include "expression.hh"
@@ -57,12 +57,12 @@ extern "C" {
 #include <future>
 
 using namespace virtdb;
-using namespace virtdb::connector;
+// using namespace virtdb::connector;
 
 extern zmq::context_t* zmq_context;
 receiver_thread* worker_thread = NULL;
-endpoint_client*  ep_clnt;
-log_record_client* log_clnt;
+// endpoint_client*  ep_clnt;
+// log_record_client* log_clnt;
 
 namespace virtdb_fdw_priv {
 
@@ -152,7 +152,7 @@ send_message(const ::google::protobuf::Message& message)
 {
     try {
         zmq::socket_t socket (*zmq_context, ZMQ_PUSH);
-        socket.connect ("tcp://localhost:45186");
+        socket.connect ("tcp://localhost:44698");
         std::string str;
         message.SerializeToString(&str);
         int sz = str.length();
@@ -275,26 +275,53 @@ cbIterateForeignScan(ForeignScanState *node)
                     {
                         case VARCHAROID: {
                             const std::string* const data = handler->get<std::string>(column_id);
-                            elog(LOG, "VARCHAROID data: %s", data->c_str());
-                            if (data)
-                            {
-                                bytea *vcdata = reinterpret_cast<bytea *>(palloc(data->size() + VARHDRSZ));
-                                ::memcpy( VARDATA(vcdata), data->c_str(), data->size() );
-                                SET_VARSIZE(vcdata, data->size() + VARHDRSZ);
-                                slot->tts_values[column_id] = PointerGetDatum(vcdata);
-                            }
-                            else {
-                                slot->tts_isnull[column_id] = true;
-                            }
+                            bytea *vcdata = reinterpret_cast<bytea *>(palloc(data->size() + VARHDRSZ));
+                            ::memcpy( VARDATA(vcdata), data->c_str(), data->size() );
+                            SET_VARSIZE(vcdata, data->size() + VARHDRSZ);
+                            slot->tts_values[column_id] = PointerGetDatum(vcdata);
                             break;
                         }
                         case INT4OID: {
                             const int32_t* const data = handler->get<int32_t>(column_id);
-                            if (data)
-                            {
-
-                            }
-                            elog(LOG, "INT4OID data: %d", *data);
+                            slot->tts_values[column_id] = Int32GetDatum(*data);
+                            break;
+                        }
+                        case INT8OID: {
+                            const int64_t* const data = handler->get<int64_t>(column_id);
+                            slot->tts_values[column_id] = Int64GetDatum(*data);
+                            break;
+                        }
+                        case FLOAT8OID:  {
+                            const double* const data = handler->get<double>(column_id);
+                            slot->tts_values[column_id] = Float8GetDatum(*data);
+                            break;
+                        }
+                        case FLOAT4OID:  {
+                            const float* const data = handler->get<float>(column_id);
+                            slot->tts_values[column_id] = Float4GetDatum(*data);
+                            break;
+                        }
+                        case NUMERICOID: {
+                            const std::string* const data = handler->get<std::string>(column_id);
+                            slot->tts_values[column_id] =
+                                DirectFunctionCall3( numeric_in,
+                                    CStringGetDatum(data->c_str()),
+                                    ObjectIdGetDatum(InvalidOid),
+                                    Int32GetDatum(meta->tupdesc->attrs[column_id]->atttypmod) );
+                            break;
+                        }
+                        case DATEOID: {
+                            const std::string* const data = handler->get<std::string>(column_id);
+                            slot->tts_values[column_id] =
+                                DirectFunctionCall1( date_in,
+                                    CStringGetDatum(data->c_str()));
+                            break;
+                        }
+                        case TIMEOID: {
+                            const std::string* const data = handler->get<std::string>(column_id);
+                            slot->tts_values[column_id] =
+                                DirectFunctionCall1( time_in,
+                                    CStringGetDatum(data->c_str()));
                             break;
                         }
                         default: {
@@ -307,7 +334,7 @@ cbIterateForeignScan(ForeignScanState *node)
             }
             ExecStoreVirtualTuple(slot);
         }
-        catch(const std::exception & e)
+        catch(const std::logic_error & e)
         {
             elog(ERROR, "[%s:%d] internal error in %s: %s",__FILE__,__LINE__,__func__, e.what());
         }
@@ -347,8 +374,8 @@ void PG_init_virtdb_fdw_cpp(void)
         auto thread = new std::thread(&receiver_thread::run, worker_thread);
         thread->detach();
 
-        ep_clnt = new endpoint_client("tcp://127.0.0.1:65001", "generic_fdw");
-        log_clnt = new log_record_client(*ep_clnt);
+        // ep_clnt = new endpoint_client("tcp://127.0.0.1:65001", "generic_fdw");
+        // log_clnt = new log_record_client(*ep_clnt);
 
 
     }
@@ -363,8 +390,8 @@ void PG_fini_virtdb_fdw_cpp(void)
     delete zmq_context;
     worker_thread->stop();
     delete worker_thread;
-    delete log_clnt;
-    delete ep_clnt;
+    // delete log_clnt;
+    // delete ep_clnt;
 }
 
 Datum virtdb_fdw_status_cpp(PG_FUNCTION_ARGS)
