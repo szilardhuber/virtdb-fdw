@@ -1,11 +1,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 
-#include <logger.hh>
-#include <util.hh>
-#include <connector.hh>
-
-
 #include "expression.hh"
 #include "query.hh"
 #include "receiver_thread.hh"
@@ -279,6 +274,7 @@ cbIterateForeignScan(ForeignScanState *node)
                     {
                         case VARCHAROID: {
                             const std::string* const data = handler->get<std::string>(column_id);
+                            LOG_TRACE("Reading STRING data" << V_(*data));
                             bytea *vcdata = reinterpret_cast<bytea *>(palloc(data->size() + VARHDRSZ));
                             ::memcpy( VARDATA(vcdata), data->c_str(), data->size() );
                             SET_VARSIZE(vcdata, data->size() + VARHDRSZ);
@@ -287,26 +283,31 @@ cbIterateForeignScan(ForeignScanState *node)
                         }
                         case INT4OID: {
                             const int32_t* const data = handler->get<int32_t>(column_id);
+                            LOG_TRACE("Reading INT32 data" << V_(*data));
                             slot->tts_values[column_id] = Int32GetDatum(*data);
                             break;
                         }
                         case INT8OID: {
                             const int64_t* const data = handler->get<int64_t>(column_id);
+                            LOG_TRACE("Reading INT64 data" << V_(*data));
                             slot->tts_values[column_id] = Int64GetDatum(*data);
                             break;
                         }
                         case FLOAT8OID:  {
                             const double* const data = handler->get<double>(column_id);
+                            LOG_TRACE("Reading DOUBLE data" << V_(*data));
                             slot->tts_values[column_id] = Float8GetDatum(*data);
                             break;
                         }
                         case FLOAT4OID:  {
                             const float* const data = handler->get<float>(column_id);
+                            LOG_TRACE("Reading FLOAT data" << V_(*data));
                             slot->tts_values[column_id] = Float4GetDatum(*data);
                             break;
                         }
                         case NUMERICOID: {
                             const std::string* const data = handler->get<std::string>(column_id);
+                            LOG_TRACE("Reading NUMERIC data" << V_(*data));
                             slot->tts_values[column_id] =
                                 DirectFunctionCall3( numeric_in,
                                     CStringGetDatum(data->c_str()),
@@ -316,6 +317,7 @@ cbIterateForeignScan(ForeignScanState *node)
                         }
                         case DATEOID: {
                             const std::string* const data = handler->get<std::string>(column_id);
+                            LOG_TRACE("Reading DATE data" << V_(*data));
                             slot->tts_values[column_id] =
                                 DirectFunctionCall1( date_in,
                                     CStringGetDatum(data->c_str()));
@@ -323,13 +325,14 @@ cbIterateForeignScan(ForeignScanState *node)
                         }
                         case TIMEOID: {
                             const std::string* const data = handler->get<std::string>(column_id);
+                            LOG_TRACE("Reading TIME data" << V_(*data));
                             slot->tts_values[column_id] =
                                 DirectFunctionCall1( time_in,
                                     CStringGetDatum(data->c_str()));
                             break;
                         }
                         default: {
-                            elog(ERROR, "Unhandled attribute type: %d", meta->tupdesc->attrs[column_id]->atttypid);
+                            LOG_ERROR("Unhandled attribute type: " << V_(meta->tupdesc->attrs[column_id]->atttypid));
                             slot->tts_isnull[column_id] = true;
                             break;
                         }

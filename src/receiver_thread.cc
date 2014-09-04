@@ -10,6 +10,7 @@
 // VirtDB headers
 #include "receiver_thread.hh"
 #include "data_handler.hh"
+#include <logger.hh>
 
 zmq::context_t* zmq_context = NULL;
 
@@ -18,7 +19,7 @@ using namespace virtdb;
 receiver_thread::receiver_thread()
 {
     data_socket = new zmq::socket_t (*zmq_context, ZMQ_SUB);
-    data_socket->connect("tcp://localhost:54915");
+    data_socket->connect("tcp://localhost:37266");
 }
 
 receiver_thread::~receiver_thread()
@@ -28,6 +29,7 @@ receiver_thread::~receiver_thread()
 
 void receiver_thread::add_query(const ForeignScanState* const node, const virtdb::query& query_data)
 {
+    LOG_TRACE("Added query: " << V_(query_data.id()));
     active_queries[node] = new data_handler(query_data);
     data_socket->setsockopt( ZMQ_SUBSCRIBE, query_data.id().c_str(), 0);
 }
@@ -36,6 +38,7 @@ void receiver_thread::remove_query(const ForeignScanState* const node)
 {
     data_handler* handler = active_queries[node];
     data_socket->setsockopt( ZMQ_UNSUBSCRIBE, handler->query_id().c_str(), 0);
+    LOG_TRACE("Removed query: " << V_(handler->query_id()));
     active_queries.erase(node);
     delete handler;
 }
