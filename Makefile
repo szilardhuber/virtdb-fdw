@@ -76,3 +76,13 @@ $(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION).sql
 
 virtdb-clean: test-build-clean clean
 	cd $(BUILD_ROOT)/common; make -f common.mk clean
+	@echo "checking for suspicious files"
+	@find . -type f -name "*.so"
+	@find . -type f -name "*.a"
+	@find . -type f -name "*.o"
+	@find . -type f -name "*.desc"
+	@find . -type f -name "*.pb.desc"
+	@find . -type f -name "*.pb.h"
+	@find . -type f -name "*.pb.cc"
+	@find . -type f -name "*.pb.h"
+
