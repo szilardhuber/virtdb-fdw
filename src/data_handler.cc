@@ -106,20 +106,6 @@ bool data_handler::is_null(int column_id) const
     }
 }
 
-const std::string* const data_handler::get_string(int column_id) const
-{
-    try {
-        if (is_null(column_id))
-            return NULL;
-        return &data.find(column_id)->second[current_chunk].data().stringvalue(inner_cursor);
-    }
-    catch(const ::google::protobuf::FatalException & e)
-    {
-        std::string error_string = "Error [" + std::to_string(__LINE__) + "]! Inner_cursor: " + std::to_string(inner_cursor) + " " + e.what();
-        throw std::invalid_argument(error_string);
-    }
-}
-
 int data_handler::data_length() const
 {
     int count = 0;

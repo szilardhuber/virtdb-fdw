@@ -69,7 +69,5 @@ namespace virtdb {
                     throw std::invalid_argument(error_string);
                 }
             }
-
-            const std::string* const get_string(int column_number) const;
     };
 }
