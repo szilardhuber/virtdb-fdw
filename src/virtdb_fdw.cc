@@ -347,7 +347,7 @@ void PG_init_virtdb_fdw_cpp(void)
         thread->detach();
 
         ep_clnt = new endpoint_client("tcp://127.0.0.1:65001", "generic_fdw");
-        log_clnt = new log_record_client(*ep_clnt);
+        log_clnt = new log_record_client(*ep_clnt,"diag-client");
 
 
     }
