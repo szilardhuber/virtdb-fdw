@@ -26,7 +26,8 @@ extern "C" {
     #include <optimizer/clauses.h>
     #include <catalog/pg_type.h>
     #include <catalog/pg_operator.h>
-    #include <catalog/pg_foreign_server.h>
+    #include <catalog/pg_foreign_data_wrapper.h>
+    #include <catalog/pg_foreign_table.h>
     #include <access/transam.h>
     #include <access/htup_details.h>
     #include <access/reloptions.h>
@@ -68,16 +69,22 @@ extern "C" {
 using namespace virtdb;
 using namespace virtdb::connector;
 
-extern zmq::context_t* zmq_context;
-receiver_thread* worker_thread = NULL;
-endpoint_client*  ep_client;
-log_record_client* log_client;
+zmq::context_t* zmq_context = new zmq::context_t(1);
 
-std::string query_address = "";
-std::string column_address = "";
+endpoint_client* ep_client;
+log_record_client* log_client;
 
 namespace virtdb_fdw_priv {
 
+struct provider {
+    std::string name = "";
+    receiver_thread* worker_thread = nullptr;
+    std::string query_address;
+    std::string data_address;
+};
+
+provider* current_provider;
+std::map<std::string, provider> providers;
 
 // We dont't do anything here right now, it is intended only for optimizations.
 static void
@@ -87,62 +94,77 @@ cbGetForeignRelSize( PlannerInfo *root,
 {
     try
     {
-        std::string config_server_url = "";
         auto table = GetForeignTable(foreigntableid);
-        auto server = GetForeignServer(table->serverid);
-        auto options = server->options;
         ListCell *cell;
-        foreach(cell, server->options)
+        std::string provider_name = "";
+        foreach(cell, table->options)
         {
             DefElem *def = (DefElem *) lfirst(cell);
             std::string option_name = def->defname;
-            if (option_name == "url")
+            if (option_name == "provider")
             {
-                config_server_url = defGetString(def);
+                provider_name = defGetString(def);
+                current_provider = &providers[provider_name];
             }
         }
-        elog(LOG, "Config server url: %s", config_server_url.c_str());
-        if (config_server_url != "")
+
+        if (current_provider && current_provider->worker_thread == nullptr)
         {
-            zmq_context = new zmq::context_t(1);
+            current_provider->worker_thread = new receiver_thread(zmq_context);
+            auto thread = new std::thread(&receiver_thread::run, current_provider->worker_thread);
+            thread->detach();
+        }
 
-            ep_client = new endpoint_client(config_server_url, "generic_fdw");
-            log_client = new log_record_client(*ep_client, "diag-service");
+        if (ep_client == nullptr || log_client == nullptr)
+        {
+            std::string config_server_url = "";
+            auto server = GetForeignServer(table->serverid);
+            auto fdw = GetForeignDataWrapper(server->fdwid);
+            foreach(cell, fdw->options)
+            {
+                DefElem *def = (DefElem *) lfirst(cell);
+                std::string option_name = def->defname;
+                if (option_name == "url")
+                {
+                    config_server_url = defGetString(def);
+                }
+            }
+            elog(LOG, "Config server url: %s", config_server_url.c_str());
+            if (config_server_url != "")
+            {
+                ep_client = new endpoint_client(config_server_url, "generic_fdw");
+                log_client = new log_record_client(*ep_client, "diag-service");
 
-            LOG_TRACE("ForeignDataWrapper is being initialized.");
-
-            ep_client->watch(virtdb::interface::pb::ServiceType::QUERY,
-                            [](const virtdb::interface::pb::EndpointData & ep) {
-                                LOG_TRACE("Endpoint watch got QUERY endpoint with name" << V_(ep.name()));
-                                for (auto connection : ep.connections())
-                                {
-                                    for (auto address : connection.address())
+                LOG_TRACE("ForeignDataWrapper is being initialized.");
+                ep_client->watch(virtdb::interface::pb::ServiceType::QUERY,
+                                [](const virtdb::interface::pb::EndpointData & ep) {
+                                    LOG_TRACE("Endpoint watch got QUERY endpoint with name" << V_(ep.name()));
+                                    for (auto connection : ep.connections())
                                     {
-                                        LOG_TRACE("Address to QUERY endpoint"<<V_(ep.name()) << V_(address));
-                                //         query_address = address;
+                                        for (auto address : connection.address())
+                                        {
+                                            LOG_TRACE("Address to QUERY endpoint"<<V_(ep.name()) << V_(address));
+                                            providers[ep.name()].worker_thread->set_query_url(address);
+                                        }
                                     }
-                                }
-                                return true;
-                            });
+                                    return true;
+                                });
 
-            ep_client->watch(virtdb::interface::pb::ServiceType::COLUMN,
-                            [](const virtdb::interface::pb::EndpointData & ep) {
-                                LOG_TRACE("Endpoint watch got COLUMN endpoint with name" << V_(ep.name()));
-                                for (auto connection : ep.connections())
-                                {
-                                    for (auto address : connection.address())
+                ep_client->watch(virtdb::interface::pb::ServiceType::COLUMN,
+                                [](const virtdb::interface::pb::EndpointData & ep) {
+                                    LOG_TRACE("Endpoint watch got COLUMN endpoint with name" << V_(ep.name()));
+                                    for (auto connection : ep.connections())
                                     {
-                                        LOG_TRACE("Address to COLUMN endpoint"<<V_(ep.name()) << V_(address));
-            //                             // column_address = address;
-            //                             // worker_thread = new receiver_thread();
-            //                             // auto thread = new std::thread(&receiver_thread::run, worker_thread);
-            //                             // thread->detach();
+                                        for (auto address : connection.address())
+                                        {
+                                            LOG_TRACE("Address to COLUMN endpoint"<<V_(ep.name()) << V_(address));
+                                            providers[ep.name()].worker_thread->set_data_url(address);
+                                        }
                                     }
-                                }
-                                return true;
-                            });
-            //
-            // LOG_TRACE("Starting up FDW.");
+                                    return true;
+                                });
+
+            }
         }
     }
     catch(const std::exception & e)
@@ -222,34 +244,6 @@ static ForeignScan
     return ret;
 }
 
-// Serializes a Protobuf message to ZMQ via REQ-REP method.
-// will be consolidated but this is also for rapid development.
-static void
-send_message(const ::google::protobuf::Message& message)
-{
-    try {
-        LOG_TRACE("Sending message to:" << V_(query_address));
-        zmq::socket_t socket (*zmq_context, ZMQ_PUSH);
-        int slept = 0;
-        while (query_address == "" && slept < 10000)
-        {
-            slept += 10;
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-        socket.connect (query_address.c_str());
-        std::string str;
-        message.SerializeToString(&str);
-        int sz = str.length();
-        zmq::message_t query_message(sz);
-        memcpy(query_message.data (), str.c_str(), sz);
-        socket.send (query_message);
-    }
-    catch (const zmq::error_t& err)
-    {
-        elog(ERROR, "Error num: %d", err.num());
-    }
-}
-
 static void
 cbBeginForeignScan( ForeignScanState *node,
                     int eflags )
@@ -320,10 +314,8 @@ cbBeginForeignScan( ForeignScanState *node,
 
         // Prepare for getting data
         LOG_TRACE("Before add_query");
-        worker_thread->add_query(node, query_data);
+        current_provider->worker_thread->send_query(node, query_data);
         LOG_TRACE("After add_query");
-
-        send_message( query_data.get_message()) ;
     }
     catch(const std::exception & e)
     {
@@ -335,10 +327,10 @@ static TupleTableSlot *
 cbIterateForeignScan(ForeignScanState *node)
 {
     struct AttInMetadata * meta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
-    data_handler* handler = worker_thread->get_data_handler(node);
+    data_handler* handler = current_provider->worker_thread->get_data_handler(node);
     if (!handler->received_data())
     {
-        worker_thread->wait_for_data(node);
+        current_provider->worker_thread->wait_for_data(node);
     }
     if (handler->has_data())
     {
@@ -361,7 +353,6 @@ cbIterateForeignScan(ForeignScanState *node)
                     {
                         case VARCHAROID: {
                             const std::string* const data = handler->get<std::string>(column_id);
-                            LOG_TRACE("Reading STRING data" << V_(*data));
                             bytea *vcdata = reinterpret_cast<bytea *>(palloc(data->size() + VARHDRSZ));
                             ::memcpy( VARDATA(vcdata), data->c_str(), data->size() );
                             SET_VARSIZE(vcdata, data->size() + VARHDRSZ);
@@ -370,31 +361,26 @@ cbIterateForeignScan(ForeignScanState *node)
                         }
                         case INT4OID: {
                             const int32_t* const data = handler->get<int32_t>(column_id);
-                            LOG_TRACE("Reading INT32 data" << V_(*data));
                             slot->tts_values[column_id] = Int32GetDatum(*data);
                             break;
                         }
                         case INT8OID: {
                             const int64_t* const data = handler->get<int64_t>(column_id);
-                            LOG_TRACE("Reading INT64 data" << V_(*data));
                             slot->tts_values[column_id] = Int64GetDatum(*data);
                             break;
                         }
                         case FLOAT8OID:  {
                             const double* const data = handler->get<double>(column_id);
-                            LOG_TRACE("Reading DOUBLE data" << V_(*data));
                             slot->tts_values[column_id] = Float8GetDatum(*data);
                             break;
                         }
                         case FLOAT4OID:  {
                             const float* const data = handler->get<float>(column_id);
-                            LOG_TRACE("Reading FLOAT data" << V_(*data));
                             slot->tts_values[column_id] = Float4GetDatum(*data);
                             break;
                         }
                         case NUMERICOID: {
                             const std::string* const data = handler->get<std::string>(column_id);
-                            LOG_TRACE("Reading NUMERIC data" << V_(*data));
                             slot->tts_values[column_id] =
                                 DirectFunctionCall3( numeric_in,
                                     CStringGetDatum(data->c_str()),
@@ -404,7 +390,6 @@ cbIterateForeignScan(ForeignScanState *node)
                         }
                         case DATEOID: {
                             const std::string* const data = handler->get<std::string>(column_id);
-                            LOG_TRACE("Reading DATE data" << V_(*data));
                             slot->tts_values[column_id] =
                                 DirectFunctionCall1( date_in,
                                     CStringGetDatum(data->c_str()));
@@ -412,7 +397,6 @@ cbIterateForeignScan(ForeignScanState *node)
                         }
                         case TIMEOID: {
                             const std::string* const data = handler->get<std::string>(column_id);
-                            LOG_TRACE("Reading TIME data" << V_(*data));
                             slot->tts_values[column_id] =
                                 DirectFunctionCall1( time_in,
                                     CStringGetDatum(data->c_str()));
@@ -450,7 +434,7 @@ cbReScanForeignScan( ForeignScanState *node )
 static void
 cbEndForeignScan(ForeignScanState *node)
 {
-    worker_thread->remove_query(node);
+    current_provider->worker_thread->remove_query(node);
 }
 
 }
@@ -465,8 +449,8 @@ void PG_init_virtdb_fdw_cpp(void)
 void PG_fini_virtdb_fdw_cpp(void)
 {
     // delete zmq_context;
-    // worker_thread->stop();
-    // delete worker_thread;
+    // current_provider->worker_thread->stop();
+    // delete current_provider->worker_thread;
     // delete log_client;
     // delete ep_client;
 }
@@ -488,7 +472,8 @@ static struct fdwOption valid_options[] =
 {
 
 	/* Connection options */
-	{ "url",  ForeignServerRelationId },
+	{ "url",  ForeignDataWrapperRelationId },
+    { "provider", ForeignTableRelationId },
 
 	/* Sentinel */
 	{ "",	InvalidOid }
