@@ -18,6 +18,8 @@ GTEST_INCLUDE   := $(GTEST_PATH)/include
 GTEST_LIBS      :=  -lgtest
 GTEST_LDFLAGS   := -L$(GTEST_LIBDIR) -L$(GTEST_LIBDIR)/.libs $(GTEST_LIBS) 
 GTEST_CFLAGS    := -I$(GTEST_INCLUDE)
+GTEST_RPATH     := -rpath=$(GTEST_LIBDIR)/ -rpath=$(GTEST_LIBDIR)/.libs/
+GTEST_RPATH_WL  := -Wl,-rpath=$(GTEST_LIBDIR)/ -Wl,-rpath=$(GTEST_LIBDIR)/.libs/
 
 COMMON_LDFLAGS  := $(BUILD_ROOT)/common/libcommon.a $(BUILD_ROOT)/common/proto/libproto.a
 COMMON_CFLAGS   := -I$(BUILD_ROOT)/common -I$(BUILD_ROOT)/common/proto
