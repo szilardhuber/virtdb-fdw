@@ -26,12 +26,15 @@ extern "C" {
     #include <optimizer/clauses.h>
     #include <catalog/pg_type.h>
     #include <catalog/pg_operator.h>
+    #include <catalog/pg_foreign_server.h>
     #include <access/transam.h>
     #include <access/htup_details.h>
+    #include <access/reloptions.h>
     #include <funcapi.h>
     #include <nodes/print.h>
     #include <nodes/makefuncs.h>
     #include <miscadmin.h>
+    #include <commands/defrem.h>
 }
 
 #include "filter.hh"
@@ -52,6 +55,13 @@ extern "C" {
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+
+// TODO REMOVE
+#include <thread>
+#include <chrono>
+// TODO REMOVE
+
+
 #include <memory>
 #include <future>
 
@@ -60,8 +70,11 @@ using namespace virtdb::connector;
 
 extern zmq::context_t* zmq_context;
 receiver_thread* worker_thread = NULL;
-endpoint_client*  ep_clnt;
-log_record_client* log_clnt;
+endpoint_client*  ep_client;
+log_record_client* log_client;
+
+std::string query_address = "";
+std::string column_address = "";
 
 namespace virtdb_fdw_priv {
 
@@ -72,6 +85,71 @@ cbGetForeignRelSize( PlannerInfo *root,
                      RelOptInfo *baserel,
                      Oid foreigntableid )
 {
+    try
+    {
+        std::string config_server_url = "";
+        auto table = GetForeignTable(foreigntableid);
+        auto server = GetForeignServer(table->serverid);
+        auto options = server->options;
+        ListCell *cell;
+        foreach(cell, server->options)
+        {
+            DefElem *def = (DefElem *) lfirst(cell);
+            std::string option_name = def->defname;
+            if (option_name == "url")
+            {
+                config_server_url = defGetString(def);
+            }
+        }
+        elog(LOG, "Config server url: %s", config_server_url.c_str());
+        if (config_server_url != "")
+        {
+            zmq_context = new zmq::context_t(1);
+
+            ep_client = new endpoint_client(config_server_url, "generic_fdw");
+            log_client = new log_record_client(*ep_client, "diag-service");
+
+            LOG_TRACE("ForeignDataWrapper is being initialized.");
+
+            ep_client->watch(virtdb::interface::pb::ServiceType::QUERY,
+                            [](const virtdb::interface::pb::EndpointData & ep) {
+                                LOG_TRACE("Endpoint watch got QUERY endpoint with name" << V_(ep.name()));
+                                for (auto connection : ep.connections())
+                                {
+                                    for (auto address : connection.address())
+                                    {
+                                        LOG_TRACE("Address to QUERY endpoint"<<V_(ep.name()) << V_(address));
+                                //         query_address = address;
+                                    }
+                                }
+                                return true;
+                            });
+
+            ep_client->watch(virtdb::interface::pb::ServiceType::COLUMN,
+                            [](const virtdb::interface::pb::EndpointData & ep) {
+                                LOG_TRACE("Endpoint watch got COLUMN endpoint with name" << V_(ep.name()));
+                                for (auto connection : ep.connections())
+                                {
+                                    for (auto address : connection.address())
+                                    {
+                                        LOG_TRACE("Address to COLUMN endpoint"<<V_(ep.name()) << V_(address));
+            //                             // column_address = address;
+            //                             // worker_thread = new receiver_thread();
+            //                             // auto thread = new std::thread(&receiver_thread::run, worker_thread);
+            //                             // thread->detach();
+                                    }
+                                }
+                                return true;
+                            });
+            //
+            // LOG_TRACE("Starting up FDW.");
+        }
+    }
+    catch(const std::exception & e)
+    {
+        elog(ERROR, "[%s:%d] internal error in %s: %s",__FILE__,__LINE__,__func__,e.what());
+    }
+
 }
 
 // We also don't intend to put this to the public API for now so this
@@ -150,8 +228,15 @@ static void
 send_message(const ::google::protobuf::Message& message)
 {
     try {
+        LOG_TRACE("Sending message to:" << V_(query_address));
         zmq::socket_t socket (*zmq_context, ZMQ_PUSH);
-        socket.connect ("tcp://localhost:44698");
+        int slept = 0;
+        while (query_address == "" && slept < 10000)
+        {
+            slept += 10;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        socket.connect (query_address.c_str());
         std::string str;
         message.SerializeToString(&str);
         int sz = str.length();
@@ -234,7 +319,9 @@ cbBeginForeignScan( ForeignScanState *node,
         // AccessInfo
 
         // Prepare for getting data
+        LOG_TRACE("Before add_query");
         worker_thread->add_query(node, query_data);
+        LOG_TRACE("After add_query");
 
         send_message( query_data.get_message()) ;
     }
@@ -357,7 +444,7 @@ cbIterateForeignScan(ForeignScanState *node)
 static void
 cbReScanForeignScan( ForeignScanState *node )
 {
-    elog(LOG, "[%s]", __func__);
+    cbBeginForeignScan(node, 0);
 }
 
 static void
@@ -373,32 +460,15 @@ extern "C" {
 
 void PG_init_virtdb_fdw_cpp(void)
 {
-    try
-    {
-        zmq_context = new zmq::context_t(1);
-
-        worker_thread = new receiver_thread();
-        auto thread = new std::thread(&receiver_thread::run, worker_thread);
-        thread->detach();
-
-        ep_clnt = new endpoint_client("tcp://127.0.0.1:65001", "generic_fdw");
-        log_clnt = new log_record_client(*ep_clnt);
-
-
-    }
-    catch(const std::exception & e)
-    {
-        elog(ERROR, "[%s:%d] internal error in %s: %s",__FILE__,__LINE__,__func__,e.what());
-    }
 }
 
 void PG_fini_virtdb_fdw_cpp(void)
 {
-    delete zmq_context;
-    worker_thread->stop();
-    delete worker_thread;
-    delete log_clnt;
-    delete ep_clnt;
+    // delete zmq_context;
+    // worker_thread->stop();
+    // delete worker_thread;
+    // delete log_client;
+    // delete ep_client;
 }
 
 Datum virtdb_fdw_status_cpp(PG_FUNCTION_ARGS)
@@ -407,6 +477,22 @@ Datum virtdb_fdw_status_cpp(PG_FUNCTION_ARGS)
     strcpy(v,"XX!");
     PG_RETURN_CSTRING(v);
 }
+
+struct fdwOption
+{
+    std::string   option_name;
+    Oid		      option_context;
+};
+
+static struct fdwOption valid_options[] =
+{
+
+	/* Connection options */
+	{ "url",  ForeignServerRelationId },
+
+	/* Sentinel */
+	{ "",	InvalidOid }
+};
 
 Datum virtdb_fdw_handler_cpp(PG_FUNCTION_ARGS)
 {
@@ -440,8 +526,37 @@ Datum virtdb_fdw_handler_cpp(PG_FUNCTION_ARGS)
     PG_RETURN_POINTER(fdw_routine);
 }
 
+static bool
+is_valid_option(std::string option, Oid context)
+{
+    for (auto opt : valid_options)
+	{
+		if (context == opt.option_context && opt.option_name == option)
+			return true;
+	}
+	return false;
+}
+
 Datum virtdb_fdw_validator_cpp(PG_FUNCTION_ARGS)
 {
+    elog(LOG, "virtdb_fdw_validator_cpp");
+    List      *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
+    Oid       catalog = PG_GETARG_OID(1);
+    ListCell  *cell;
+    foreach(cell, options_list)
+	{
+        DefElem	   *def = (DefElem *) lfirst(cell);
+        std::string option_name = def->defname;
+        if (!is_valid_option(option_name, catalog))
+        {
+            elog(ERROR, "[%s] - Invalid option: %s", __func__, option_name.c_str());
+        }
+        elog(LOG, "Option name: %s", option_name.c_str());
+        if (option_name == "url")
+        {
+            elog(LOG, "Config server url in validator: %s", defGetString(def));
+        }
+    }
     // TODO
     PG_RETURN_VOID();
 }

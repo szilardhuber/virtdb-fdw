@@ -13,13 +13,14 @@
 #include <logger.hh>
 
 zmq::context_t* zmq_context = NULL;
+// extern std::string column_address;
 
 using namespace virtdb;
 
 receiver_thread::receiver_thread()
 {
     data_socket = new zmq::socket_t (*zmq_context, ZMQ_SUB);
-    data_socket->connect("tcp://localhost:37266");
+    // data_socket->connect(column_address.c_str());
 }
 
 receiver_thread::~receiver_thread()
@@ -31,7 +32,9 @@ void receiver_thread::add_query(const ForeignScanState* const node, const virtdb
 {
     LOG_TRACE("Added query: " << V_(query_data.id()));
     active_queries[node] = new data_handler(query_data);
+    LOG_TRACE("Data handler created.");
     data_socket->setsockopt( ZMQ_SUBSCRIBE, query_data.id().c_str(), 0);
+    LOG_TRACE("Socket options set.");
 }
 
 void receiver_thread::remove_query(const ForeignScanState* const node)
@@ -92,19 +95,19 @@ void receiver_thread::run()
             try
             {
                 // QueryID
-                data_socket->recv(&query_id);
-
-                // Column data
-                data_socket->recv(&update);
-                virtdb::interface::pb::Column column;
-                column.ParseFromArray(update.data(), update.size());
-                data_handler* handler = get_data_handler(column.queryid());
-                std::unique_lock<std::mutex> cv_lock(cv[handler->query_id()].mutex);
-                handler->push(column.name(), column);
-                if (handler->received_data())
-                {
-                    cv[column.queryid()].variable.notify_all();
-                }
+                // data_socket->recv(&query_id);
+                //
+                // // Column data
+                // data_socket->recv(&update);
+                // virtdb::interface::pb::Column column;
+                // column.ParseFromArray(update.data(), update.size());
+                // data_handler* handler = get_data_handler(column.queryid());
+                // std::unique_lock<std::mutex> cv_lock(cv[handler->query_id()].mutex);
+                // handler->push(column.name(), column);
+                // if (handler->received_data())
+                // {
+                //     cv[column.queryid()].variable.notify_all();
+                // }
             }
             catch(const std::exception & e)
             {
