@@ -57,12 +57,6 @@ extern "C" {
 #include <ctype.h>
 #include <stdlib.h>
 
-// TODO REMOVE
-#include <thread>
-#include <chrono>
-// TODO REMOVE
-
-
 #include <memory>
 #include <future>
 
@@ -96,15 +90,13 @@ cbGetForeignRelSize( PlannerInfo *root,
     {
         auto table = GetForeignTable(foreigntableid);
         ListCell *cell;
-        std::string provider_name = "";
         foreach(cell, table->options)
         {
             DefElem *def = (DefElem *) lfirst(cell);
             std::string option_name = def->defname;
             if (option_name == "provider")
             {
-                provider_name = defGetString(def);
-                current_provider = &providers[provider_name];
+                current_provider = &providers[defGetString(def)];
             }
         }
 
@@ -542,7 +534,6 @@ Datum virtdb_fdw_validator_cpp(PG_FUNCTION_ARGS)
             elog(LOG, "Config server url in validator: %s", defGetString(def));
         }
     }
-    // TODO
     PG_RETURN_VOID();
 }
 

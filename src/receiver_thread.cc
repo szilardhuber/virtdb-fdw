@@ -12,8 +12,6 @@
 #include "data_handler.hh"
 #include <logger.hh>
 
-// extern std::string column_address;
-
 using namespace virtdb;
 
 receiver_thread::receiver_thread(zmq::context_t* context) :
